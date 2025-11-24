@@ -62,6 +62,13 @@ CREATE TABLE IF NOT EXISTS Usuario (
     FOREIGN KEY (empleado_id) REFERENCES Empleado(id)
 );
 
+CREATE TABLE IF NOT EXISTS Sesion (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    usuario_id INTEGER NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id)
+);
+
 CREATE TABLE IF NOT EXISTS OrigenDeGeneracion (
     id INTEGER NOT NULL AUTO_INCREMENT,
     nombre VARCHAR(100) NOT NULL,
@@ -173,6 +180,10 @@ INSERT INTO Usuario (id, nombre_usuario, contrasena, empleado_id) VALUES
 (1, 'juan1.p', '123abc', 1),
 (2, 'juan2.p', '123abc', 2),
 (3, 'juan3.p', '123abc', 3);
+
+-- 6.1. Sesion (Usuario logueado: juan1.p)
+INSERT INTO Sesion (id, usuario_id) VALUES
+(1, 1);
 
 -- 7. Origenes de Generacion
 INSERT INTO OrigenDeGeneracion (id, nombre) VALUES
