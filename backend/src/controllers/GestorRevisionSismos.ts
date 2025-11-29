@@ -5,6 +5,15 @@ import EventoSismico from '../models/EventoSismico';
 import DatosPrincipales from '../models/EventoSismico';
 import Estado from '../models/Estado';
 import Empleado from "../models/Empleado";
+import mysql from 'mysql2/promise';
+
+// Configuración de conexión a la base de datos
+const dbConfig = {
+  host: 'localhost',
+  user: 'root',
+  password: '',
+  database: 'sismografo'
+};
 
 export default class GestorRevisionSismos {
   iniciarSesion(nombreUsuario: string, contraseña: string) {
@@ -39,10 +48,19 @@ export default class GestorRevisionSismos {
 */
   // -------------------------------------------------------------------------
   // Paso 4 – filtrar
-  private buscarEventosSismicosAutoDetectados(): EventoSismico[] {
-    return this.eventos.filter(
-      (evento) => evento.esAutodetectado() || evento.esPendienteDeRevision(),
-    )
+  private async buscarEventosSismicosAutoDetectados(): Promise<EventoSismico[]> {
+    const query = `
+      SELECT es.*, e.nombre as estado_nombre
+      FROM EventoSismico es
+      JOIN Estado e ON es.estado_actual_id = e.id
+      WHERE e.nombre IN ('auto_detectado', 'pendiente_de_revision')
+      AND e.ambito = 'EventoSismico'
+    `;
+    
+    const connection = await mysql.createConnection(dbConfig);
+    const [rows] = await connection.query(query);
+    await connection.end();
+    return rows as EventoSismico[];
   }
   
   // Paso 16 – ordenar
@@ -53,8 +71,8 @@ export default class GestorRevisionSismos {
   }
   
   // Paso 17 – obtener datos principales para la UI
-  public obtenerEventosSismicosAutodetectados(): any[] {
-    const candidatos = this.buscarEventosSismicosAutoDetectados()
+  public async obtenerEventosSismicosAutodetectados(): Promise<any[]> {
+    const candidatos = await this.buscarEventosSismicosAutoDetectados()
     const ordenados = this.ordenarEventosSismicos(candidatos)
     return ordenados.map((e) => e.getDatosPrincipales())
   }

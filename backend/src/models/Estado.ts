@@ -1,26 +1,11 @@
-type NombreEstado = 
-|"auto_detectado" 
-| "auto_confirmado" 
-| "pendiente_de_revision" 
-| "bloqueado_en_revision" 
-| "rechazado" 
-| "confirmado" 
-| "derivado_experto" 
-| "evento_sin_revision" 
-| "pendiente_de_cierre" 
-| "cerrado" 
-| "en_linea"
-type Ambito = 
-|"EventoSismico" 
-| "Sismografo"
 
-export default class Estado {
-  private ambito: Ambito
-  private nombreEstado: NombreEstado
+export abstract class Estado {
+  private ambito: string
+  private nombreEstado: string
 
   constructor(
-    ambito: Ambito,
-    nombreEstado: NombreEstado
+    ambito: string,
+    nombreEstado: string
   ) {
     this.ambito = ambito
     this.nombreEstado = nombreEstado
@@ -43,9 +28,7 @@ export default class Estado {
   }
 
   
-  esConfirmado() {
-    return this.nombreEstado === "confirmado"
-  }
+  confirmar():void {}
   
   esRechazado() {
     return this.nombreEstado === "rechazado"
@@ -55,14 +38,7 @@ export default class Estado {
     return this.nombreEstado === "derivado_experto"
   }
 
-  esAmbito(ambito: Ambito): boolean {
-    return this.ambito === ambito
-  }
 
-  public esAmbitoEventoSismico(): boolean {
-    // Compara el ámbito interno con el valor "EventoSismico"
-    return this.ambito === "EventoSismico";
-  }
 
   esBloqueadoEnRevision() {
     return this.nombreEstado === "bloqueado_en_revision"
