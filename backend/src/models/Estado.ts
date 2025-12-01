@@ -1,146 +1,101 @@
-import CambioEstado from "./CambioEstado"
-import Empleado from "./Empleado"
+import CambioEstado from "./CambioEstado";
 
-// Forward declaration para evitar dependencia circular
-type EventoSismicoType = {
-  setCambioEstado(cambio: CambioEstado): void;
+// Forward declaration
+export type EventoSismicoType = {
+  agregarCambioEstado(cambioEstado: CambioEstado): void;
   setEstadoActual(estado: Estado): void;
   getValorMagnitud(): number;
   getOrigenDeGeneracion(): any;
-  getClasificacionSismo(): any;
+  getClasificacionSismo?(): any; // Opcional por ahora (comentado en EventoSismico)
 }
 
-/**
- * Clase abstracta Estado - Patrón State (GoF)
- * 
- * PROBLEMA QUE RESUELVE:
- * Permite que un objeto (EventoSismico) altere su comportamiento cuando su estado interno cambia.
- * El objeto parecerá cambiar de clase, delegando el comportamiento específico a los estados concretos.
- * 
- * JUSTIFICACIÓN:
- * - Un evento sísmico tiene múltiples estados con comportamientos diferentes
- * - Las transiciones entre estados tienen reglas específicas (ej: solo se puede bloquear desde auto_detectado o pendiente_de_revision)
- * - El patrón State encapsula estas reglas en cada estado concreto, evitando condicionales complejos
- */
-export default abstract class Estado {
-  private ambito: string
-  private nombreEstado: string
+export abstract class Estado {
+  private ambito: string;
+  private nombreEstado: string;
 
-  constructor(
-    ambito: string,
-    nombreEstado: string
-  ) {
-    this.ambito = ambito
-    this.nombreEstado = nombreEstado
+  constructor(ambito: string, nombreEstado: string) {
+    this.ambito = ambito;
+    this.nombreEstado = nombreEstado;
   }
 
   // ==========================================
-  // GETTERS - Visibilidad: public
+  // GETTERS Y CONSULTAS
   // ==========================================
-  
-  public getAmbito(): string {
-    return this.ambito
-  }
+  public getAmbito(): string { return this.ambito; }
+  public getNombreEstado(): string { return this.nombreEstado; }
 
-  public getNombreEstado(): string {
-    return this.nombreEstado
-  }
-
-  // ==========================================
-  // MÉTODOS DE CONSULTA DE ESTADO - Visibilidad: public
-  // Retorno: boolean
-  // ==========================================
-  
-  public esAutoDetectado(): boolean {
-    return this.nombreEstado === "auto_detectado"
-  }
-
-  public esPendienteDeRevision(): boolean {
-    return this.nombreEstado === "pendiente_de_revision"
-  }
-
-  public esConfirmado(): boolean {
-    return this.nombreEstado === "confirmado"
-  }
-  
-  public esRechazado(): boolean {
-    return this.nombreEstado === "rechazado"
-  }
-
-  public esDerivadoExperto(): boolean {
-    return this.nombreEstado === "derivado_experto"
-  }
-
-  public esBloqueadoEnRevision(): boolean {
-    return this.nombreEstado === "bloqueado_en_revision"
-  }
-
-  public esAmbito(ambito: string): boolean {
-    return this.ambito === ambito
-  }
-
-  public esAmbitoEventoSismico(): boolean {
-    return this.ambito === "EventoSismico"
-  }
+  // Por defecto todos false, los concretos sobrescriben el suyo a true
+  public esAutoDetectado(): boolean { return false; }
+  public esPendienteDeRevision(): boolean { return false; }
+  public esConfirmado(): boolean { return false; }
+  public esRechazado(): boolean { return false; }
+  public esDerivadoExperto(): boolean { return false; }
+  public esBloqueadoEnRevision(): boolean { return false; }
+  public esAutoConfirmado(): boolean { return false; }
 
   // ==========================================
-  // MÉTODOS POLIMÓRFICOS DEL PATRÓN STATE
-  // Definen el comportamiento de transición de cada estado
-  // Visibilidad: public
-  // Parámetros: contexto (EventoSismico), fechaHoraActual (Date), empleado (Empleado)
-  // Retorno: void (mutan el estado del contexto) o lanzan Error si transición inválida
+  // MÉTODOS DE TRANSICIÓN (Template Pattern)
+  // Lanzan error por defecto.
   // ==========================================
 
-  /**
-   * Método polimórfico: bloquear
-   * Permite la transición al estado "bloqueado_en_revision"
-   * Por defecto lanza error - solo estados válidos sobrescriben
-   */
-  public bloquear(contexto: EventoSismicoType, fechaHoraActual: Date, empleado: Empleado): void {
-    throw new Error(`No se puede bloquear un evento en estado ${this.nombreEstado}`)
+  public bloquear(contexto: EventoSismicoType, fechaHoraActual: Date): void {
+    throw new Error(`No se puede bloquear un evento en estado ${this.nombreEstado}`);
   }
 
-  /**
-   * Método polimórfico: rechazar
-   * Permite la transición al estado "rechazado"
-   * Solo válido desde estado "bloqueado_en_revision"
-   */
-  public rechazar(contexto: EventoSismicoType, fechaHoraActual: Date, empleado: Empleado): void {
-    throw new Error(`No se puede rechazar un evento en estado ${this.nombreEstado}`)
+  public rechazar(contexto: EventoSismicoType, fechaHoraActual: Date): void {
+    throw new Error(`No se puede rechazar un evento en estado ${this.nombreEstado}`);
   }
 
-  /**
-   * Método polimórfico: confirmar
-   * Permite la transición al estado "confirmado"
-   * Solo válido desde estado "bloqueado_en_revision"
-   */
-  public confirmar(contexto: EventoSismicoType, fechaHoraActual: Date, empleado: Empleado): void {
-    throw new Error(`No se puede confirmar un evento en estado ${this.nombreEstado}`)
+  public confirmar(contexto: EventoSismicoType, fechaHoraActual: Date): void {
+    throw new Error(`No se puede confirmar un evento en estado ${this.nombreEstado}`);
   }
 
-  /**
-   * Método polimórfico: derivarAExperto
-   * Permite la transición al estado "derivado_experto"
-   * Solo válido desde estado "bloqueado_en_revision"
-   */
-  public derivarAExperto(contexto: EventoSismicoType, fechaHoraActual: Date, empleado: Empleado): void {
-    throw new Error(`No se puede derivar a experto un evento en estado ${this.nombreEstado}`)
+  public derivarAExperto(contexto: EventoSismicoType, fechaHoraActual: Date): void {
+    throw new Error(`No se puede derivar a experto un evento en estado ${this.nombreEstado}`);
   }
 
-  /**
-   * Método polimórfico: validarDatosCompletos
-   * Valida que el evento tenga magnitud, alcance y origen de generación
-   * Usado antes de confirmar/rechazar/derivar (paso 12 del CU)
-   */
+  // Valida datos obligatorios antes de decisiones críticas
   public validarDatosCompletos(contexto: EventoSismicoType): boolean {
-    const magnitud = contexto.getValorMagnitud()
-    const origen = contexto.getOrigenDeGeneracion()
-    const clasificacion = contexto.getClasificacionSismo()
+    const magnitud = contexto.getValorMagnitud();
+    const origen = contexto.getOrigenDeGeneracion();
+    const clasificacion = contexto.getClasificacionSismo?.();
     
     return magnitud !== null && magnitud !== undefined &&
            origen !== null && origen !== undefined &&
-           clasificacion !== null && clasificacion !== undefined
+           (clasificacion === undefined || (clasificacion !== null));
+  }
+
+  // ==========================================
+  // LÓGICA CENTRALIZADA (PROTECTED)
+  // ==========================================
+
+  /**
+   * Método polimórfico auxiliar.
+   * Se usa cuando hay un flujo lineal claro (ej: Pendiente -> Bloqueado).
+   */
+  public crearEstadoSiguiente(): Estado | null {
+    return null;
+  }
+
+  /**
+   * Crea el objeto CambioEstado vinculado al NUEVO estado.
+   */
+  public crearCambioEstado(fechaHoraInicio: Date): CambioEstado {
+    // 'this' aquí se refiere a la instancia del NUEVO estado
+    return new CambioEstado(this, fechaHoraInicio, null, null); 
+  }
+
+  /**
+   * MÉTODO DE ORO: Centraliza toda la actualización del contexto.
+   */
+  protected hacerTransicion(contexto: EventoSismicoType, nuevoEstado: Estado, fechaHora: Date): void {
+    // 1. Seteamos el estado en el contexto
+    contexto.setEstadoActual(nuevoEstado);
+
+    // 2. Creamos el historial usando el nuevo estado
+    const nuevoCambioEstado = nuevoEstado.crearCambioEstado(fechaHora);
+
+    // 3. Guardamos el historial
+    contexto.agregarCambioEstado(nuevoCambioEstado);
   }
 }
-
-export { Estado }

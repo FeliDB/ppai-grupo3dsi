@@ -1,33 +1,19 @@
-import Empleado from "./Empleado"
 
 export default class Usuario {
   private nombreUsuario: string
   private contraseña: string
-  private empleado: Empleado
+  
 
-  constructor(
-    nombreUsuario: string,
-    contraseña: string,
-    empleado: Empleado
-  ) {
+  constructor(nombreUsuario: string,contraseña: string,) {
     this.nombreUsuario = nombreUsuario
     this.contraseña = contraseña
-    this.empleado = empleado
+    
   }
 
-  getNombreUsuario() {
+
+  getEmpleado(){
     return this.nombreUsuario
-  }
-
-  getContraseña() {
     return this.contraseña
   }
 
-  getEmpleado(): Empleado {
-    return this.empleado
-  }
-
-  getRILogueado(): Empleado {
-    return this.empleado
-  }
 }

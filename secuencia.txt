@@ -1,0 +1,138 @@
+@startuml
+actor "AS" as AS
+participant ":PantRegResEventoSísmico" as Pantalla
+participant ":GestorRegResEventoSísmico" as Gestor
+participant ":EventoSismico" as Evento
+participant "selec:EventoSismico" as EventoSelec
+participant ":Estado" as Estado
+participant ":PendienteRevision" as PendienteRev
+participant ":BloqueadoEnRevisión" as BloqueadoRev
+participant ":Rechazado" as Rechazado
+participant ":CambioEstado" as CambioEstado
+participant "actual:CambioEstado" as CambioEstadoActual
+participant "new:CambioEstado" as NewCambioEstado
+participant ":Sesion" as Sesion
+participant "Login:Usuario" as Usuario
+participant ":AlcanceSismo" as Alcance
+participant ":ClasificacionSismo" as Clasificacion
+participant ":OrigenDeGeneracion" as Origen
+participant ":SerieTemporal" as Serie
+participant ":MuestraSismica" as Muestra
+participant ":DetalleMuestraSismica" as Detalle
+participant ":TipoDato" as TipoDato
+participant ":Sismografo" as Sismografo
+participant ":EstacionSismologica" as Estacion
+
+AS -> Pantalla: 1.opcRegResultadoRevisionManual(): Array<Object>
+Pantalla -> Pantalla: 2.abrirVentana(): void
+Pantalla -> Gestor: 3.opcRegResultadoRevisionManual(): Array<Object>
+
+Gestor -> Evento: 4.buscarEventosSismicosAutoDetectados(): Array<Object>
+
+loop Eventos Sismicos Autodetectados y Pendientes de Revision. [mientras haya eventos sismicos]
+    Gestor -> Evento: 5.esAutodetectado(): boolean
+    Evento --> Gestor: 6.boolean
+    Gestor -> Evento: 7.esPendienteDeRevision(): boolean
+    Evento --> Gestor: 8.boolean
+    
+    Gestor -> Evento: 9.getDatosPrincipales(): Object
+    Evento -> Evento: 10.getFechaHoraOcurrencia(): Date
+    Evento -> Evento: 11.getLatitudEpicentro(): number
+    Evento -> Evento: 12.getLongitudEpicentro(): number
+    Evento -> Evento: 13.getLatitudHipocentro(): number
+    Evento -> Evento: 14.getLongitudHipocentro(): number
+    Evento -> Evento: 15.getMagnitud(): number
+end
+
+Gestor -> Gestor: 16.ordenarEventosSismicos(eventos: Array<Object>): Array<Object>
+Gestor -> Pantalla: 17.mostrarEventoSismicoParaSeleccion(eventos: Array<Object>): Array<Object>
+
+Pantalla -> Pantalla: 18.tomarSeleccionEventoSismico(eventoId: number): Object
+Pantalla -> Gestor: 19.tomarSeleccionEventoSismico(eventoId: number): Object
+
+note right: 18.Generar Sismograma
+
+Gestor -> Gestor: 23.tomarFechaHoraActual(): void
+Gestor -> Sesion: 24.buscarEmpleadoLogueado(): void
+Sesion -> Sesion: 25.obtenerUsuarioLogueado(): Usuario
+Sesion -> Usuario: 26.getEmpleado(): Usuario
+
+Gestor -> EventoSelec: 27.bloquearEventoSismico(eventoId: number): void
+EventoSelec -> EventoSelec: 28.bloquear(): void
+EventoSelec -> PendienteRev: 29.bloquear(): BloqueadoEnRevision
+PendienteRev -> CambioEstadoActual: 30.setFechaHoraFin(): void
+PendienteRev -> PendienteRev: 31.crearEstadoSiguiente(): BloqueadoEnRevision
+
+create BloqueadoRev
+PendienteRev -> BloqueadoRev: 32.new(): BloqueadoEnRevision
+PendienteRev -> PendienteRev: 33.crearCambioEstado(): CambioEstado
+
+create NewCambioEstado
+PendienteRev -> NewCambioEstado: 34.new(): CambioEstado
+
+EventoSelec -> EventoSelec: 35.agregarCambioEstado(cambioEstado: CambioEstado): void
+EventoSelec -> EventoSelec: 36.setEstadoActual(estado: Estado): void
+
+Gestor -> EventoSelec: 37.buscarDatosSismicos(eventoId: number): Object
+EventoSelec -> EventoSelec: 38.buscarDatosSismicos(): Object
+EventoSelec -> Alcance: 38.getNombre(): string
+Alcance -> Alcance: 39.getNombre(): string
+EventoSelec -> Clasificacion: 40.getNombre(): string
+Clasificacion -> Clasificacion: 41.getNombre(): string
+EventoSelec -> Origen: 42.getNombre(): string
+Origen -> Origen: 43.getNombre(): string
+
+Gestor -> Pantalla: 44.mostrarDatosEventoSismicoSeleccionado(datos: Object): void
+
+Gestor -> EventoSelec: 45.buscarSeriesTemporales(eventoId: number): Array<Object>
+EventoSelec -> Serie: 46.buscarSeriesTemporales(): Array<SerieTemporal>
+
+loop Serie Temporal [mientras haya series temporales]
+    Serie -> Serie: 47.getSerieTemporal(): SerieTemporal
+    
+    loop Muestra Sismica [mientras haya muestras sismicas]
+        Serie -> Muestra: 48.getMuestraSismica(): Array<MuestraSismica>
+        
+        loop Detalle Muestra Sismica [mientras haya detalles de muestra sismica]
+            Muestra -> Detalle: 49.getDetalleMuestraSismica(): Array<DetalleMuestraSismica>
+            Detalle -> TipoDato: 50.getValorUmbral(): number
+        end
+    end
+    
+    Serie -> Sismografo: 51.getEstacionSismologica(): EstacionSismologica
+    Sismografo -> Estacion: 52.getNombre(): string
+    EventoSelec -> EventoSelec: 53.clasificarPorEstacion(): void
+end
+
+Gestor -> Gestor: 54.include(): void
+Gestor -> Gestor: 55.ordenarSeriesTemporales(series: Array<Object>): Array<Object>
+
+Gestor -> Pantalla: 56.habilitarSeleccionMapa(): void
+Gestor -> Pantalla: 57.habilitarModificacionDatos(): void
+Gestor -> Pantalla: 58.solicitarSeleccionRechazo(): void
+Pantalla -> Pantalla: 59.tomarSeleccionRechazo(): boolean
+
+Gestor -> EventoSelec: 60.rechazarEventoSismico(eventoId: number): void
+Pantalla -> Pantalla: 61.validarDatos(): boolean
+Gestor -> Gestor: 62.actualizarEstadoRechazado(): void
+Gestor -> Gestor: 63.tomarFechaHoraActual(): void
+
+EventoSelec -> EventoSelec: 64.rechazar(): void
+EventoSelec -> BloqueadoRev: 65.rechazar(): Rechazado
+BloqueadoRev -> CambioEstadoActual: 66.setFechaHoraFin(): void
+BloqueadoRev -> BloqueadoRev: 67.crearEstadoSiguiente(): Rechazado
+
+create Rechazado
+BloqueadoRev -> Rechazado: 68.new(): Rechazado
+
+BloqueadoRev -> BloqueadoRev: 69.crearCambioEstado(): CambioEstado
+
+create NewCambioEstado
+BloqueadoRev -> NewCambioEstado: 70.new(): CambioEstado
+
+EventoSelec -> EventoSelec: 71.agregarCambioEstado(cambioEstado: CambioEstado): void
+EventoSelec -> EventoSelec: 72.setEstadoActual(estado: Estado): void
+
+Gestor -> Pantalla: 73.finCU(): void
+
+@enduml

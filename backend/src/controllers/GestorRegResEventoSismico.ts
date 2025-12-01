@@ -1,28 +1,37 @@
 /**
- * GestorRevisionSismos - Controlador GRASP
+ * GestorRegResEventoSismico - Controlador GRASP
  * 
  * Caso de Uso: Registrar Resultado de Revisión Manual
  * Patrón: Controller (GRASP), Singleton
  * 
  * Responsabilidad: Coordina el caso de uso completo.
- * Interacción: Pantalla → GestorRevisionSismos → Base de Datos
+ * Interacción: PantRegResEventoSismico → GestorRegResEventoSismico → Base de Datos
  * 
  * Métodos principales (según diagrama de secuencia):
- * - obtenerEventosSismicosAutodetectados() → Paso 2 del CU
- * - bloquearEvento() → Paso 4 del CU
- * - buscarDatosSismicos() → Paso 5 del CU
- * - rechazarEvento() → Pasos 11-13 del CU
- * - confirmarEvento() → Flujo alternativo
- * - derivarEvento() → Flujo alternativo
+ * - opcRegResultadoRevisionManual() → Paso 3: Inicia el CU
+ * - buscarEventosSismicosAutoDetectados() → Paso 4: Buscar eventos
+ * - ordenarEventosSismicos() → Paso 16: Ordenar eventos
+ * - tomarSeleccionEventoSismico() → Paso 19: Seleccionar evento
+ * - tomarFechaHoraActual() → Paso 23: Obtener fecha/hora actual
+ * - buscarEmpleadoLogueado() → Paso 24: Obtener empleado logueado
+ * - bloquearEventoSismico() → Paso 27: Bloquear evento
+ * - buscarDatosSismicos() → Paso 37: Buscar datos sísmicos
+ * - buscarSeriesTemporales() → Paso 45: Buscar series temporales
+ * - ordenarSeriesTemporales() → Paso 55: Ordenar series
+ * - rechazarEventoSismico() → Paso 60: Rechazar evento
+ * - finCU() → Paso 73: Finalizar caso de uso
  * 
  * Base de datos: MySQL (Docker container: mi_mysql_container)
  */
 
 import mysql, { Pool, RowDataPacket } from 'mysql2/promise'
 
-export default class GestorRevisionSismos {
-  private static instance: GestorRevisionSismos
+export default class GestorRegResEventoSismico {
+  private static instance: GestorRegResEventoSismico
   private pool: Pool
+  private fechaHoraActual: Date | null = null
+  private usuarioLogueado: any = null
+  private eventoSeleccionado: any = null
 
   private constructor() {
     this.pool = mysql.createPool({
@@ -37,23 +46,36 @@ export default class GestorRevisionSismos {
   }
 
   /** Singleton - Obtener instancia única del gestor */
-  public static getInstance(): GestorRevisionSismos {
-    if (!GestorRevisionSismos.instance) {
-      GestorRevisionSismos.instance = new GestorRevisionSismos()
+  public static getInstance(): GestorRegResEventoSismico {
+    if (!GestorRegResEventoSismico.instance) {
+      GestorRegResEventoSismico.instance = new GestorRegResEventoSismico()
     }
-    return GestorRevisionSismos.instance
+    return GestorRegResEventoSismico.instance
   }
 
   // ==========================================
-  // PASO 2: OBTENER EVENTOS AUTODETECTADOS
+  // PASO 3: INICIAR CASO DE USO
   // ==========================================
 
   /**
-   * Paso 2 del CU: Buscar eventos sísmicos autodetectados no revisados
-   * Ordenados por fecha/hora de ocurrencia
+   * Paso 3 del CU: Inicia el caso de uso de registro de resultado de revisión manual
+   * @returns Lista de eventos sísmicos autodetectados ordenados
+   */
+  async opcRegResultadoRevisionManual(): Promise<any[]> {
+    const eventos = await this.buscarEventosSismicosAutoDetectados()
+    return this.ordenarEventosSismicos(eventos)
+  }
+
+  // ==========================================
+  // PASO 4: BUSCAR EVENTOS AUTODETECTADOS
+  // ==========================================
+
+  /**
+   * Paso 4 del CU: Buscar eventos sísmicos autodetectados no revisados
+   * Filtra eventos que son autodetectados y pendientes de revisión
    * @returns Lista de eventos con estado auto_detectado o pendiente_de_revision
    */
-  async obtenerEventosSismicosAutodetectados(): Promise<any[]> {
+  async buscarEventosSismicosAutoDetectados(): Promise<any[]> {
     const [rows] = await this.pool.query<RowDataPacket[]>(`
       SELECT 
         e.id,
@@ -77,16 +99,58 @@ export default class GestorRevisionSismos {
     return rows
   }
 
+  /**
+   * Paso 16 del CU: Ordenar eventos sísmicos por fecha/hora de ocurrencia
+   * @param eventos - Lista de eventos a ordenar
+   * @returns Lista de eventos ordenados
+   */
+  ordenarEventosSismicos(eventos: any[]): any[] {
+    return eventos.sort((a, b) => 
+      new Date(a.fechaHoraOcurrencia).getTime() - new Date(b.fechaHoraOcurrencia).getTime()
+    )
+  }
+
+  /**
+   * Paso 19 del CU: Tomar selección del evento sísmico
+   * @param eventoId - ID del evento seleccionado
+   * @returns Objeto con el evento seleccionado
+   */
+  async tomarSeleccionEventoSismico(eventoId: number): Promise<any> {
+    this.eventoSeleccionado = eventoId
+    return { eventoId }
+  }
+
+  /**
+   * Paso 23 del CU: Obtener fecha/hora actual del sistema
+   */
+  tomarFechaHoraActual(): void {
+    this.fechaHoraActual = new Date()
+  }
+
+  /**
+   * Paso 24 del CU: Buscar empleado logueado en el sistema
+   */
+  async buscarEmpleadoLogueado(): Promise<void> {
+    // Obtiene el usuario logueado de la sesión
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      'SELECT id, nombre_usuario FROM Usuario WHERE id = 1'
+    )
+    if (rows.length > 0) {
+      this.usuarioLogueado = rows[0]
+    }
+  }
+
   // ==========================================
-  // PASO 4: BLOQUEAR EVENTO
+  // PASO 27: BLOQUEAR EVENTO SISMICO
   // ==========================================
 
   /**
-   * Paso 4 del CU: Bloquear evento seleccionado
+   * Paso 27 del CU: Bloquear evento sísmico seleccionado
    * Cambia el estado a bloqueado_en_revision
-   * @param identificador - ID numérico o identificador del evento
+   * @param eventoId - ID numérico o identificador del evento
    */
-  async bloquearEvento(identificador: string): Promise<void> {
+  async bloquearEventoSismico(eventoId: number | string): Promise<void> {
+    const identificador = String(eventoId)
     const connection = await this.pool.getConnection()
     try {
       await connection.beginTransaction()
@@ -134,15 +198,16 @@ export default class GestorRevisionSismos {
   }
 
   // ==========================================
-  // PASO 5: BUSCAR DATOS SÍSMICOS
+  // PASO 37: BUSCAR DATOS SISMICOS
   // ==========================================
 
   /**
-   * Paso 5 del CU: Obtener datos sísmicos del evento
-   * Incluye: evento, origen de generación, series temporales por estación
-   * @param identificador - ID del evento
+   * Paso 37 del CU: Buscar datos sísmicos del evento
+   * Incluye: alcance, clasificación, origen de generación
+   * @param eventoId - ID del evento
    */
-  async buscarDatosSismicos(identificador: string): Promise<any> {
+  async buscarDatosSismicos(eventoId: number | string): Promise<any> {
+    const identificador = String(eventoId)
     // Buscar evento
     const [eventoRows] = await this.pool.query<RowDataPacket[]>(`
       SELECT 
@@ -191,15 +256,55 @@ export default class GestorRevisionSismos {
   }
 
   // ==========================================
-  // PASOS 11-13: RECHAZAR EVENTO
+  // PASO 45: BUSCAR SERIES TEMPORALES
   // ==========================================
 
   /**
-   * Pasos 11-13 del CU: Rechazar evento
-   * Cambia el estado a rechazado
-   * @param identificador - ID del evento
+   * Paso 45 del CU: Buscar series temporales del evento
+   * @param eventoId - ID del evento
+   * @returns Lista de series temporales
    */
-  async rechazarEvento(identificador: string): Promise<void> {
+  async buscarSeriesTemporales(eventoId: number | string): Promise<any[]> {
+    const [series] = await this.pool.query<RowDataPacket[]>(`
+      SELECT 
+        st.id,
+        st.fecha_hora_inicio_registro as fechaHoraInicioRegistro,
+        st.fecha_hora_registro as fechaHoraRegistro,
+        st.frecuencia_muestreo as frecuenciaMuestreo,
+        st.condicion_alarma as condicionAlarma,
+        s.identificador as sismografoId,
+        es.codigo_estacion as codigoEstacion,
+        es.nombre as nombreEstacion
+      FROM SerieTemporal st
+      JOIN Sismografo s ON st.sismografo_id = s.id
+      JOIN EstacionSismologica es ON s.estacion_id = es.id
+      WHERE st.evento_sismico_id = ?
+    `, [eventoId])
+    return series
+  }
+
+  /**
+   * Paso 55 del CU: Ordenar series temporales por fecha/hora de registro
+   * @param series - Lista de series temporales
+   * @returns Lista ordenada
+   */
+  ordenarSeriesTemporales(series: any[]): any[] {
+    return series.sort((a, b) => 
+      new Date(a.fechaHoraInicioRegistro).getTime() - new Date(b.fechaHoraInicioRegistro).getTime()
+    )
+  }
+
+  // ==========================================
+  // PASO 60: RECHAZAR EVENTO SISMICO
+  // ==========================================
+
+  /**
+   * Paso 60 del CU: Rechazar evento sísmico
+   * Cambia el estado a rechazado
+   * @param eventoId - ID del evento
+   */
+  async rechazarEventoSismico(eventoId: number | string): Promise<void> {
+    const identificador = String(eventoId)
     const connection = await this.pool.getConnection()
     try {
       await connection.beginTransaction()
@@ -242,15 +347,16 @@ export default class GestorRevisionSismos {
   }
 
   // ==========================================
-  // FLUJO ALTERNATIVO: CONFIRMAR EVENTO
+  // FLUJO ALTERNATIVO: CONFIRMAR EVENTO SISMICO
   // ==========================================
 
   /**
-   * Flujo alternativo: Confirmar evento
+   * Flujo alternativo: Confirmar evento sísmico
    * Cambia el estado a confirmado
-   * @param identificador - ID del evento
+   * @param eventoId - ID del evento
    */
-  async confirmarEvento(identificador: string): Promise<void> {
+  async confirmarEventoSismico(eventoId: number | string): Promise<void> {
+    const identificador = String(eventoId)
     const connection = await this.pool.getConnection()
     try {
       await connection.beginTransaction()
@@ -297,11 +403,12 @@ export default class GestorRevisionSismos {
   // ==========================================
 
   /**
-   * Flujo alternativo: Derivar evento a experto
+   * Flujo alternativo: Derivar evento sísmico a experto
    * Cambia el estado a derivado_experto
-   * @param identificador - ID del evento
+   * @param eventoId - ID del evento
    */
-  async derivarEvento(identificador: string): Promise<void> {
+  async derivarEventoSismico(eventoId: number | string): Promise<void> {
+    const identificador = String(eventoId)
     const connection = await this.pool.getConnection()
     try {
       await connection.beginTransaction()
@@ -341,5 +448,18 @@ export default class GestorRevisionSismos {
     } finally {
       connection.release()
     }
+  }
+
+  // ==========================================
+  // PASO 73: FIN DEL CASO DE USO
+  // ==========================================
+
+  /**
+   * Paso 73 del CU: Finalizar caso de uso
+   * Limpia el estado del gestor
+   */
+  finCU(): void {
+    this.eventoSeleccionado = null
+    this.fechaHoraActual = null
   }
 }

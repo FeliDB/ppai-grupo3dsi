@@ -61,4 +61,20 @@ export default class SerieTemporal {
       sismografo: this.sismografo
     }
   }
+
+  /**
+   * Paso 47 del CU: Obtener la serie temporal
+   * @returns Esta instancia de SerieTemporal
+   */
+  getSerieTemporal(): SerieTemporal {
+    return this
+  }
+
+  /**
+   * Paso 48 del CU: Obtener muestras sísmicas de la serie
+   * @returns Array de MuestraSismica
+   */
+  getMuestraSismica(): MuestraSismica[] {
+    return this.muestraSismica
+  }
 }

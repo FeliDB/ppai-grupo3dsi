@@ -19,7 +19,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 
-import GestorRevisionSismos from './controllers/GestorRevisionSismos'
+import GestorRegResEventoSismico from './controllers/GestorRegResEventoSismico'
 import PantRegResRevManual from '../../pantalla/PanRegResRevManual'
 
 dotenv.config()
@@ -31,7 +31,7 @@ app.use(cors())
 app.use(express.json())
 
 // Gestor del caso de uso (Singleton)
-const gestor = GestorRevisionSismos.getInstance()
+const gestor = GestorRegResEventoSismico.getInstance()
 const pantalla = new PantRegResRevManual() 
 
 // ==========================================
@@ -54,7 +54,7 @@ app.get('/', (_req, res) => {
  */
 app.get('/api/eventos/autodetectados', async (_req, res) => {
   try {
-    const eventos = await gestor.obtenerEventosSismicosAutodetectados()
+    const eventos = await gestor.opcRegResultadoRevisionManual()
     res.json(eventos)
   } catch (error: any) {
     console.error('Error:', error)
@@ -81,10 +81,10 @@ app.get('/api/eventos/:id/datos', async (req, res) => {
  * Persiste el cambio en MySQL
  */
 app.post('/api/eventos/:id/bloquear', async (req, res) => {
-  const identificador = req.params.id
-  console.log('Bloquear evento:', identificador)
+  const eventoId = req.params.id
+  console.log('Bloquear evento:', eventoId)
   try {
-    await gestor.bloquearEvento(identificador)
+    await gestor.bloquearEventoSismico(eventoId)
     console.log('OK - Evento bloqueado y persistido')
     res.status(200).json({ message: 'Evento bloqueado exitosamente' })
   } catch (error: any) {
@@ -97,10 +97,10 @@ app.post('/api/eventos/:id/bloquear', async (req, res) => {
  * Paso 11-13 del CU: Rechazar evento
  */
 app.post('/api/eventos/:id/rechazar', async (req, res) => {
-  const identificador = req.params.id
-  console.log('Rechazar evento:', identificador)
+  const eventoId = req.params.id
+  console.log('Rechazar evento:', eventoId)
   try {
-    await gestor.rechazarEvento(identificador)
+    await gestor.rechazarEventoSismico(eventoId)
     console.log('OK - Evento rechazado y persistido')
     res.status(200).json({ message: 'Evento rechazado exitosamente' })
   } catch (error: any) {
@@ -113,10 +113,10 @@ app.post('/api/eventos/:id/rechazar', async (req, res) => {
  * Flujo alternativo: Confirmar evento
  */
 app.post('/api/eventos/:id/confirmar', async (req, res) => {
-  const identificador = req.params.id
-  console.log('Confirmar evento:', identificador)
+  const eventoId = req.params.id
+  console.log('Confirmar evento:', eventoId)
   try {
-    await gestor.confirmarEvento(identificador)
+    await gestor.confirmarEventoSismico(eventoId)
     console.log('OK - Evento confirmado y persistido')
     res.status(200).json({ message: 'Evento confirmado exitosamente' })
   } catch (error: any) {
@@ -129,10 +129,10 @@ app.post('/api/eventos/:id/confirmar', async (req, res) => {
  * Flujo alternativo: Derivar evento a experto
  */
 app.post('/api/eventos/:id/derivar', async (req, res) => {
-  const identificador = req.params.id
-  console.log('Derivar evento:', identificador)
+  const eventoId = req.params.id
+  console.log('Derivar evento:', eventoId)
   try {
-    await gestor.derivarEvento(identificador)
+    await gestor.derivarEventoSismico(eventoId)
     console.log('OK - Evento derivado y persistido')
     res.status(200).json({ message: 'Evento derivado a experto exitosamente' })
   } catch (error: any) {

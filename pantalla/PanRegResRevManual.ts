@@ -159,7 +159,7 @@ export default class PantRegResRevManual {
         <div class="container">
             <div class="header">
                 <h1>🌍 Registrar Resultado de Revisión Manual</h1>
-                <p>Caso de Uso - Sistema de Monitoreo Sísmico | Patrón State (GoF)</p>
+                <p>Caso de Uso - Sistema de Monitoreo Sísmico </p>
             </div>
             
             <div id="mensaje" class="mensaje"></div>
@@ -232,7 +232,7 @@ export default class PantRegResRevManual {
                         html += '    <div class="info-item"><div class="info-label">Hipocentro (Lat, Long)</div><div class="info-value">' + evento.latitudHipocentro + ', ' + evento.longitudHipocentro + '</div></div>';
                         html += '    <div class="info-item"><div class="info-label">Estado Actual</div><div class="info-value"><span class="estado-badge ' + estadoClase + '">' + (evento.estadoActualNombre || '') + '</span></div></div>';
                         html += '  </div>';
-                        html += '  <button class="btn btn-primary btn-seleccionar" data-id="' + evento.id + '">Seleccionar Evento (Paso 3)</button>';
+                        html += '  <button class="btn btn-primary btn-seleccionar" data-id="' + evento.id + '">Seleccionar Evento</button>';
                         html += '</div>';
                     }
                     contenedor.innerHTML = html;
@@ -258,7 +258,7 @@ export default class PantRegResRevManual {
                     //Cargar datos sísmicos
                     await cargarDatosEvento(id);
                     
-                    mostrarMensaje('Evento ' + id + ' bloqueado para revisión (Paso 4 completado)', 'success');
+                    mostrarMensaje('Evento ' + id + ' Bloqueado para revisión', 'success');
                     await cargarEventos();
                 } catch (err) {
                     mostrarMensaje('Error: ' + err.message, 'error');
@@ -298,7 +298,7 @@ export default class PantRegResRevManual {
                 
                 const mensajes = {
                     'confirmar': 'Evento confirmado exitosamente',
-                    'rechazar': 'Evento rechazado exitosamente (Paso 13 completado)',
+                    'rechazar': 'Evento rechazado exitosamente',
                     'derivar': 'Evento derivado a experto exitosamente'
                 };
                 

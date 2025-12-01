@@ -1,5 +1,5 @@
 import EstacionSismologica from "./EstacionSismologica"
-import Estado from "./Estado"
+import { Estado } from "./Estado"
 
 export default class Sismografo {
   private fechaAdquisicion: Date

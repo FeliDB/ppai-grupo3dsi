@@ -1,0 +1,221 @@
+@startuml
+
+class PantRegResEventoSismico {
+  +btnRegResultadoRevisionManual: boolean
+  +btnSeleccionEvento: boolean
+  +btnVisualizarMapa: boolean
+  +btnModificarDatos: boolean
+  +btnRechazo: boolean
+  -gestor: GestorRegResEventoSismico
+  -eventoSeleccionado: number
+  +opcRegResultadoRevisionManual(): Array<Object>
+  +abrirVentana(): void
+  +mostrarEventoSismicoParaSeleccion(eventos: Array<Object>): Array<Object>
+  +tomarSeleccionEventoSismico(eventoId: number): Object
+  +mostrarDatosEventoSismicoSeleccionado(datos: Object): void
+  +habilitarSeleccionMapa(): void
+  +habilitarModificacionDatos(): void
+  +solicitarSeleccionRechazo(): void
+  +tomarSeleccionRechazo(): boolean
+  +validarDatos(): boolean
+}
+
+class GestorRegResEventoSismico {
+  -eventoSismico: EventoSismico
+  -estado: Estado
+  -fechaHoraActual: Date
+  -usuarioLogueado: Usuario
+  -serieTemporal: SerieTemporal
+  -sesion: Sesion
+  -db: Connection
+  -eventoSeleccionado: Object
+  +conectarDB(): void
+  +opcRegResultadoRevisionManual(): Array<Object>
+  +buscarEventosSismicosAutoDetectados(): Array<Object>
+  +ordenarEventosSismicos(eventos: Array<Object>): Array<Object>
+  +tomarSeleccionEventoSismico(eventoId: number): Object
+  +tomarFechaHoraActual(): void
+  +buscarEmpleadoLogueado(): void
+  +bloquearEventoSismico(eventoId: number): void
+  +buscarDatosSismicos(eventoId: number): Object
+  +buscarSeriesTemporales(eventoId: number): Array<Object>
+  +ordenarSeriesTemporales(series: Array<Object>): Array<Object>
+  +rechazarEventoSismico(eventoId: number): void
+  +finCU(): void
+}
+
+class EventoSismico {
+  -fechaHoraOcurrencia: Date
+  -latitudEpicentro: number
+  -longitudEpicentro: number
+  -latitudHipocentro: number
+  -longitudHipocentro: number
+  -valorMagnitud: number
+  -estado: Estado
+  -cambiosEstado: Array<CambioEstado>
+  -alcanceSismo: AlcanceSismo
+  -clasificacionSismo: ClasificacionSismo
+  -origenGeneracion: OrigenDeGeneracion
+  -seriesTemporales: Array<SerieTemporal>
+  +esAutodetectado(): boolean
+  +esPendienteDeRevision(): boolean
+  +getDatosPrincipales(): Object
+  +getFechaHoraOcurrencia(): Date
+  +getLatitudEpicentro(): number
+  +getLongitudEpicentro(): number
+  +getLatitudHipocentro(): number
+  +getLongitudHipocentro(): number
+  +getMagnitud(): number
+  +bloquear(): void
+  +rechazar(): void
+  +buscarUltimoCambioEstado(): CambioEstado
+  +agregarCambioEstado(cambioEstado: CambioEstado): void
+  +setEstadoActual(estado: Estado): void
+  +buscarDatosSismicos(): Object
+  +buscarSeriesTemporales(): Array<SerieTemporal>
+  +clasificarPorEstacion(): void
+}
+
+abstract class Estado {
+  -ambito: string
+  -nombreEstado: string
+  +setFechaHoraFin(): void
+  +crearEstadoSiguiente(): Estado
+  +crearCambioEstado(): CambioEstado
+}
+
+class Sesion {
+  -nombre: string
+  -usuario: Usuario
+  +obtenerUsuarioLogueado(): Usuario
+  +setUsuario(usuario: Usuario): void
+}
+
+class Usuario {
+  -contrasena: string
+  -nombreUsuario: string
+  +getEmpleado(): Usuario
+}
+
+class CambioEstado {
+  -fechaHoraInicio: Date
+  -fechaHoraFin: Date
+  +esActual(): boolean
+  +setFechaHoraFin(): void
+}
+
+class AlcanceSismo {
+  -descripcion: string
+  -nombre: string
+  +getNombre(): string
+}
+
+class ClasificacionSismo {
+  -kmProfundidadDesde: number
+  -kmProfundidadHasta: number
+  -nombre: string
+  +getNombre(): string
+}
+
+class OrigenDeGeneracion {
+  -descripcion: string
+  -nombre: string
+  +getNombre(): string
+}
+
+class SerieTemporal {
+  -frecuenciaMuestreo: number
+  -fechaHoraRegistroMuestras: Date
+  -fechaHoraRegistro: Date
+  -muestrasSismicas: Array<MuestraSismica>
+  -sismografo: Sismografo
+  +getSerieTemporal(): SerieTemporal
+  +getMuestraSismica(): Array<MuestraSismica>
+}
+
+class MuestraSismica {
+  -fechaHoraMuestra: Date
+  -tipoDato: TipoDato
+  -detallesMuestra: Array<DetalleMuestraSismica>
+  +getMuestraSismica(): MuestraSismica
+  +getDetalleMuestraSismica(): Array<DetalleMuestraSismica>
+}
+
+class DetalleMuestraSismica {
+  -valor: number
+  +getDetalleMuestraSismica(): DetalleMuestraSismica
+}
+
+class TipoDato {
+  -valorUmbral: number
+  +getValorUmbral(): number
+}
+
+class Sismografo {
+  -identificadorSismografo: string
+  -nroSerie: string
+  -estacionSismologica: EstacionSismologica
+  +getEstacionSismologica(): EstacionSismologica
+}
+
+class EstacionSismologica {
+  -nombre: string
+  +getNombre(): string
+}
+
+class PendienteRevision {
+  +bloquear(): BloqueadoEnRevision
+  +crearEstadoSiguiente(): BloqueadoEnRevision
+  +crearCambioEstado(): CambioEstado
+}
+
+class BloqueadoEnRevision {
+  +rechazar(): Rechazado
+  +crearEstadoSiguiente(): Rechazado
+  +crearCambioEstado(): CambioEstado
+}
+
+class Rechazado {
+}
+
+class Autodetectado
+class SinRevision
+class DerivadoAExperto
+class Confirmado
+
+' Relaciones
+PantRegResEventoSismico --> GestorRegResEventoSismico
+GestorRegResEventoSismico --> EventoSismico
+GestorRegResEventoSismico --> Estado
+GestorRegResEventoSismico --> Sesion
+GestorRegResEventoSismico --> SerieTemporal
+
+EventoSismico "1" --> "1" Estado : estado
+EventoSismico "1" --> "1" ClasificacionSismo : clasificacionSismo
+EventoSismico "1" --> "1" OrigenDeGeneracion : origenGeneracion
+EventoSismico "1" --> "1" AlcanceSismo : alcanceSismo
+EventoSismico "1" --> "1" Usuario : analistaSismo
+EventoSismico "1" --> "1..*" SerieTemporal : serieTemporal
+EventoSismico "1" --> "1..*" CambioEstado : cambioEstado
+
+Estado "1" <-- "1..*" CambioEstado : estado
+
+Usuario "1" -- Sesion : usuario
+
+SerieTemporal "1" --> "1..*" MuestraSismica : muestraSismica
+SerieTemporal "1" --> "1" Sismografo : serieTemporal
+
+MuestraSismica "1" --> "1..*" DetalleMuestraSismica : detalleMuestraSismica
+MuestraSismica --> TipoDato
+
+Sismografo "1" --> "1" EstacionSismologica : estacionSismologica
+
+Estado <|-- PendienteRevision
+Estado <|-- BloqueadoEnRevision
+Estado <|-- Rechazado
+Estado <|-- Autodetectado
+Estado <|-- SinRevision
+Estado <|-- DerivadoAExperto
+Estado <|-- Confirmado
+
+@enduml

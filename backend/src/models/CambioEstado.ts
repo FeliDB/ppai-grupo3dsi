@@ -1,46 +1,53 @@
-import Empleado from "./Empleado"
-import Estado from "./Estado"
+import { Estado } from "./Estado"; 
+import Usuario from "./Usuario";
 
 export default class CambioEstado {
-  private fechaHoraInicio: Date
-  private fechaHoraFin: Date | null
-  private empleadoResponsable: Empleado | null
-  private estado: Estado
+  private fechaHoraInicio: Date;
+  private fechaHoraFin: Date | null;
+  private estado: Estado;
+  private empleadoResponsable: Usuario | null;
 
   constructor(
     estado: Estado,
     fechaHoraInicio: Date,
     fechaHoraFin: Date | null,
-    empleadoResponsable: Empleado | null = null
+    empleadoResponsable: Usuario | null = null
   ) {
-    this.estado = estado
-    this.fechaHoraInicio = fechaHoraInicio
-    this.fechaHoraFin = null
-    this.empleadoResponsable = empleadoResponsable
+    this.estado = estado;
+    this.fechaHoraInicio = fechaHoraInicio;
+    this.fechaHoraFin = fechaHoraFin; 
+    this.empleadoResponsable = empleadoResponsable;
   }
 
-  getFechaHoraInicio() {
-    return this.fechaHoraInicio
+  // ==========================================
+  // MÉTODOS DEL DIAGRAMA DE SECUENCIA
+  // ==========================================
+
+  public getFechaHoraFin(): Date | null {
+    return this.fechaHoraFin;
   }
 
-  getFechaHoraFin() {
-    return this.fechaHoraFin
+  public getEstado(): Estado {
+    return this.estado;
   }
 
-  getEmpleadoResponsable() {
-    return this.empleadoResponsable
+   public getFechaHoraInicio(): Date | null {
+    return this.fechaHoraInicio;
   }
 
-  getEstado(): Estado {
-    return this.estado
+  /**
+   * Paso 103 del diagrama: Verifica si es el estado actual.
+   * Si no tiene fecha de fin, significa que sigue activo.
+   */
+  public esActual(): boolean {
+    return this.fechaHoraFin === null;
   }
 
-  esEstadoActual(): boolean {
-    return this.fechaHoraFin === null
-  }
-
-  setFechaHoraFin(horaFin: Date) {
-    return this.fechaHoraFin = horaFin
+  /**
+   * Se llama cuando el evento cambia de estado nuevamente,
+   * para cerrar este registro histórico.
+   */
+  public setFechaHoraFin(horaFin: Date): void {
+    this.fechaHoraFin = horaFin;
   }
 }
-

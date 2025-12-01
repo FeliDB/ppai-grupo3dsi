@@ -1,4 +1,4 @@
-import Estado from "./Estado";
+import { Estado } from "./Estado";
 
 export default class EstadoEnLinea extends Estado {
   constructor() {

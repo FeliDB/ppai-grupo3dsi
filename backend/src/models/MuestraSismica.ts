@@ -18,4 +18,20 @@ export default class MuestraSismica {
       detalleMuestraSismica: this.detalleMuestraSismica
     }
   }
+
+  /**
+   * Paso 140 del diagrama de clases: Obtener la muestra sísmica
+   * @returns Esta instancia de MuestraSismica
+   */
+  getMuestraSismica(): MuestraSismica {
+    return this
+  }
+
+  /**
+   * Paso 49 del CU: Obtener detalles de la muestra sísmica
+   * @returns Array de DetalleMuestraSismica
+   */
+  getDetalleMuestraSismica(): DetalleMuestraSismica[] {
+    return this.detalleMuestraSismica
+  }
 }
