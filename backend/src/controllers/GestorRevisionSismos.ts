@@ -1,249 +1,345 @@
-import { eventosSismicos, usuarios } from "../data/data";
-import { ESTADOS } from "../data/estados";
-import Sesion from "../models/Sesion";
-import EventoSismico from '../models/EventoSismico'; 
-import DatosPrincipales from '../models/EventoSismico';
-import Estado from '../models/Estado';
-import Empleado from "../models/Empleado";
-import mysql from 'mysql2/promise';
+/**
+ * GestorRevisionSismos - Controlador GRASP
+ * 
+ * Caso de Uso: Registrar Resultado de Revisión Manual
+ * Patrón: Controller (GRASP), Singleton
+ * 
+ * Responsabilidad: Coordina el caso de uso completo.
+ * Interacción: Pantalla → GestorRevisionSismos → Base de Datos
+ * 
+ * Métodos principales (según diagrama de secuencia):
+ * - obtenerEventosSismicosAutodetectados() → Paso 2 del CU
+ * - bloquearEvento() → Paso 4 del CU
+ * - buscarDatosSismicos() → Paso 5 del CU
+ * - rechazarEvento() → Pasos 11-13 del CU
+ * - confirmarEvento() → Flujo alternativo
+ * - derivarEvento() → Flujo alternativo
+ * 
+ * Base de datos: MySQL (Docker container: mi_mysql_container)
+ */
 
-// Configuración de conexión a la base de datos
-const dbConfig = {
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'sismografo'
-};
+import mysql, { Pool, RowDataPacket } from 'mysql2/promise'
 
 export default class GestorRevisionSismos {
-  iniciarSesion(nombreUsuario: string, contraseña: string) {
-    const usuario = usuarios.find((usuario) => usuario.getNombreUsuario() === nombreUsuario && usuario.getContraseña() === contraseña)
+  private static instance: GestorRevisionSismos
+  private pool: Pool
 
-    if (!usuario) {
-      throw new Error("Credenciales incorrectas")
-    }
-
-    Sesion.iniciarSesion(usuario)
-  }
-  
-  // Utiliza la fuente de datos real de eventos sismicos
-  private readonly eventos: EventoSismico[] = eventosSismicos;
-
-  /*
-  // TODO: separar el map en getDatosPrincipales()
-  // NOTE: listo
-  obtenerEventosSismicosAutodetectados() {
-    const eventosAutodetectados = eventosSismicos
-    .filter(evento =>
-    evento.getEstadoActual().esAutoDetectado() ||
-    evento.getEstadoActual().esPendienteDeRevision()
-    ) // Filtra por estado autodetectado o pendiente_de_revision
-      .sort((a, b) =>
-        a.getFechaHoraOcurrencia().getTime() - b.getFechaHoraOcurrencia().getTime()
-      ) // Ordena por fechaHoraOcurriencia
-      .map(evento => evento.getDatosPrincipales()); // Obtiene los datosPrincipales
-
-    return eventosAutodetectados;
-  }
-*/
-  // -------------------------------------------------------------------------
-  // Paso 4 – filtrar
-  private async buscarEventosSismicosAutoDetectados(): Promise<EventoSismico[]> {
-    const query = `
-      SELECT es.*, e.nombre as estado_nombre
-      FROM EventoSismico es
-      JOIN Estado e ON es.estado_actual_id = e.id
-      WHERE e.nombre IN ('auto_detectado', 'pendiente_de_revision')
-      AND e.ambito = 'EventoSismico'
-    `;
-    
-    const connection = await mysql.createConnection(dbConfig);
-    const [rows] = await connection.query(query);
-    await connection.end();
-    return rows as EventoSismico[];
-  }
-  
-  // Paso 16 – ordenar
-  private ordenarEventosSismicos(eventos: EventoSismico[]): EventoSismico[] {
-    return [...eventos].sort(
-      (a, b) => a.getFechaHoraOcurrencia().getTime() - b.getFechaHoraOcurrencia().getTime(),
-    )
-  }
-  
-  // Paso 17 – obtener datos principales para la UI
-  public async obtenerEventosSismicosAutodetectados(): Promise<any[]> {
-    const candidatos = await this.buscarEventosSismicosAutoDetectados()
-    const ordenados = this.ordenarEventosSismicos(candidatos)
-    return ordenados.map((e) => e.getDatosPrincipales())
-  }
-
-  // -------------------------------------------------------------------------
- //TODO* ACA EMPIEZA EL PASO 28 HAY QUE REVISAR Y PREGUNTAR CON EL RAMIRO QUE HIZO EL
- 
-
- buscarEstadoBloqueado(): Estado | undefined {
-    const estados = Object.values(ESTADOS)
-    return estados.find(
-      (estado) => estado.esAmbitoEventoSismico() && estado.esBloqueadoEnRevision()
-    )
-  }
-   /* Corresponde al mensaje 23: tomarFechaHoraActual()
-   */
-  private tomarFechaHoraActual(): Date {
-    return new Date();
-  }
-  
-  public  buscarEmpleadoLogueado(): Empleado {
-      const sesion = Sesion.getSesionActual()
-      const usuario = sesion.getUsuarioLogueado()
-      const empleado = usuario.getEmpleado()
-      return empleado
-  }
-  /*
-  obtenerSesionActual() {
-    return Sesion.getSesionActual()
-  }
-  */
-
-  private buscarEventoSismico(id: string): EventoSismico | undefined {
-    return this.eventosDisponibles.find(e => e['id'] === id);
-  }
-  private get eventosDisponibles(): EventoSismico[] {
-    return this.eventos.filter(evento => evento.getEstadoActual().esAmbitoEventoSismico());
-  }
-  
-  public ejecutarBloqueo(eventoId: string, empleado: Empleado, fecha: Date) {
-    const eventoSeleccionado = this.buscarEventoSismico(eventoId);
-
-    if (eventoSeleccionado) {
-
-      // MENSAJE 28: bloquear()
-      eventoSeleccionado.bloquear(fecha, empleado);
-
-      return eventoSeleccionado;
-    } else {
-      return null;
-    }
-  }
-
-//TODO ACA TERMINA EL PASO 28
-
-
-
-
-
-
-  obtenerEventoPorId(id: string) {
-    const evento = eventosSismicos.find((evento) => evento.getId() === id)
-
-    if (!evento) return
-
-    return evento.getDatosPrincipales()
-  }
-
-  buscarDatosSismicos(id: string) {
-    const evento = eventosSismicos.find((evento) => evento.getId() === id)
-
-    if (!evento) throw new Error("Evento no encontrado")
-
-    return {
-      clasificacion: evento.getClasificacionSismo(),
-      origenDeGeneracion: evento.getOrigenDeGeneracion(),
-      seriesTemporales: this.buscarSeriesTemporales(id)
-
-      // TODO: alcanceSismo: evento.getAlcances(),
-    }
-  }
-
-  // TODO: AGREGAR METODO buscarSeriesTemporales()
-  buscarSeriesTemporales(id: string) {
-    const evento = eventosSismicos.find((evento) => evento.getId() === id);
-    if (!evento) throw new Error("Evento no encontrado")
-
-    const seriesTemporales = evento.getSerieTemporal()
-
-    const seriesPorEstacion = evento.clasificarPorEstacion(seriesTemporales)
-
-    return seriesPorEstacion;
-  }
-
-  actualizarAPendienteRevision() { // Metodo para actualizar el evento dsp de 5min
-    const fechaActual = new Date()
-    eventosSismicos.forEach((evento) => {
-      evento.actualizarAPendienteRevision(fechaActual)
+  private constructor() {
+    this.pool = mysql.createPool({
+      host: 'localhost',
+      user: 'root',
+      password: '12345',
+      database: 'sismografo',
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
     })
   }
 
-  obtenerTodosLosUsuarios() {
-    return usuarios.map((usuario) => ({
-      nombreUsuario: usuario.getNombreUsuario(),
-      empleado: usuario.getRILogueado()
-    }))
+  /** Singleton - Obtener instancia única del gestor */
+  public static getInstance(): GestorRevisionSismos {
+    if (!GestorRevisionSismos.instance) {
+      GestorRevisionSismos.instance = new GestorRevisionSismos()
+    }
+    return GestorRevisionSismos.instance
   }
 
-  // NOTE: el diagrama dice revisar()
-  bloquearEvento(id: string) {
-    const evento = eventosSismicos.find((evento) => evento.getId() === id)
-    if (!evento) throw new Error("Evento no encontrado")
+  // ==========================================
+  // PASO 2: OBTENER EVENTOS AUTODETECTADOS
+  // ==========================================
 
-    const estadoActual = evento.getEstadoActual()
-
-    if (!estadoActual.esAmbito("EventoSismico")) return
-    if (
-      estadoActual.esBloqueadoEnRevision() ||
-      estadoActual.esConfirmado() ||
-      estadoActual.esRechazado() ||
-      estadoActual.esDerivadoExperto()
-    ) return // Se verifica que estadoActual no sea ninguno de esos
-
-    const usuario = Sesion.getSesionActual().getUsuarioLogueado()
-    const empleado = usuario.getRILogueado()
-
-    // WARN: REVISAR
-    // NOTE: esta bien creo
-    evento.cambiarEstadoA(ESTADOS.bloqueado_en_revision, empleado)
+  /**
+   * Paso 2 del CU: Buscar eventos sísmicos autodetectados no revisados
+   * Ordenados por fecha/hora de ocurrencia
+   * @returns Lista de eventos con estado auto_detectado o pendiente_de_revision
+   */
+  async obtenerEventosSismicosAutodetectados(): Promise<any[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(`
+      SELECT 
+        e.id,
+        e.identificador_evento as identificadorEvento,
+        e.fecha_hora_ocurrencia as fechaHoraOcurrencia,
+        e.latitud_epicentro as latitudEpicentro,
+        e.latitud_hipocentro as latitudHipocentro,
+        e.longitud_epicentro as longitudEpicentro,
+        e.longitud_hipocentro as longitudHipocentro,
+        e.valor_magnitud as valorMagnitud,
+        e.profundidad,
+        est.nombre as estadoActualNombre,
+        est.id as estadoActualId,
+        og.nombre as origenGeneracion
+      FROM EventoSismico e
+      JOIN Estado est ON e.estado_actual_id = est.id
+      LEFT JOIN OrigenDeGeneracion og ON e.origen_id = og.id
+      WHERE est.nombre IN ('auto_detectado', 'pendiente_de_revision')
+      ORDER BY e.fecha_hora_ocurrencia ASC
+    `)
+    return rows
   }
 
-  rechazarEvento(id: string) {
-    const evento = eventosSismicos.find((evento) => evento.getId() === id)
-    if (!evento) throw new Error("Evento no encontrado")
+  // ==========================================
+  // PASO 4: BLOQUEAR EVENTO
+  // ==========================================
 
-    const estadoActual = evento.getEstadoActual()
+  /**
+   * Paso 4 del CU: Bloquear evento seleccionado
+   * Cambia el estado a bloqueado_en_revision
+   * @param identificador - ID numérico o identificador del evento
+   */
+  async bloquearEvento(identificador: string): Promise<void> {
+    const connection = await this.pool.getConnection()
+    try {
+      await connection.beginTransaction()
 
-    if (!estadoActual.esAmbito("EventoSismico")) return
+      // Buscar evento
+      const [eventoRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id, estado_actual_id FROM EventoSismico WHERE id = ? OR identificador_evento = ?',
+        [identificador, identificador]
+      )
+      if (eventoRows.length === 0) throw new Error('Evento no encontrado')
+      
+      const eventoId = eventoRows[0].id
 
-    const usuario = Sesion.getSesionActual().getUsuarioLogueado()
-    const empleado = usuario.getRILogueado()
+      // Buscar estado bloqueado_en_revision
+      const [estadoRows] = await connection.query<RowDataPacket[]>(
+        "SELECT id FROM Estado WHERE nombre = 'bloqueado_en_revision'"
+      )
+      const estadoBloqueadoId = estadoRows[0].id
 
-    evento.cambiarEstadoA(ESTADOS.rechazado, empleado)
+      // Cerrar cambio de estado anterior (setFechaHoraFin)
+      await connection.query(
+        'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
+        [eventoId]
+      )
+
+      // Crear nuevo CambioEstado
+      await connection.query(
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NULL, ?, ?, ?)',
+        [estadoBloqueadoId, eventoId, 1] // empleado_id = 1 por defecto
+      )
+
+      // Actualizar estado actual del evento
+      await connection.query(
+        'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
+        [estadoBloqueadoId, eventoId]
+      )
+
+      await connection.commit()
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      connection.release()
+    }
   }
 
-  confirmarEvento(id: string) {
-    const evento = eventosSismicos.find((evento) => evento.getId() === id)
-    if (!evento) throw new Error("Evento no encontrado")
+  // ==========================================
+  // PASO 5: BUSCAR DATOS SÍSMICOS
+  // ==========================================
 
-    const estadoActual = evento.getEstadoActual()
+  /**
+   * Paso 5 del CU: Obtener datos sísmicos del evento
+   * Incluye: evento, origen de generación, series temporales por estación
+   * @param identificador - ID del evento
+   */
+  async buscarDatosSismicos(identificador: string): Promise<any> {
+    // Buscar evento
+    const [eventoRows] = await this.pool.query<RowDataPacket[]>(`
+      SELECT 
+        e.id,
+        e.identificador_evento as identificadorEvento,
+        e.fecha_hora_ocurrencia as fechaHoraOcurrencia,
+        e.latitud_epicentro as latitudEpicentro,
+        e.latitud_hipocentro as latitudHipocentro,
+        e.longitud_epicentro as longitudEpicentro,
+        e.longitud_hipocentro as longitudHipocentro,
+        e.valor_magnitud as valorMagnitud,
+        e.profundidad,
+        est.nombre as estadoActualNombre,
+        og.nombre as origenGeneracion
+      FROM EventoSismico e
+      JOIN Estado est ON e.estado_actual_id = est.id
+      LEFT JOIN OrigenDeGeneracion og ON e.origen_id = og.id
+      WHERE e.id = ? OR e.identificador_evento = ?
+    `, [identificador, identificador])
+    
+    if (eventoRows.length === 0) throw new Error('Evento no encontrado')
+    const evento = eventoRows[0]
 
-    if (!estadoActual.esAmbito("EventoSismico")) return
+    // Buscar series temporales con estación
+    const [series] = await this.pool.query<RowDataPacket[]>(`
+      SELECT 
+        st.id,
+        st.fecha_hora_inicio_registro as fechaHoraInicioRegistro,
+        st.fecha_hora_registro as fechaHoraRegistro,
+        st.frecuencia_muestreo as frecuenciaMuestreo,
+        st.condicion_alarma as condicionAlarma,
+        s.identificador as sismografoId,
+        es.codigo_estacion as codigoEstacion,
+        es.nombre as nombreEstacion
+      FROM SerieTemporal st
+      JOIN Sismografo s ON st.sismografo_id = s.id
+      JOIN EstacionSismologica es ON s.estacion_id = es.id
+      WHERE st.evento_sismico_id = ?
+    `, [evento.id])
 
-    const usuario = Sesion.getSesionActual().getUsuarioLogueado()
-    const empleado = usuario.getRILogueado()
-
-    evento.cambiarEstadoA(ESTADOS.confirmado, empleado)
+    return {
+      evento,
+      origenGeneracion: evento.origenGeneracion,
+      seriesTemporales: series
+    }
   }
 
-  derivarEvento(id: string) {
-    const evento = eventosSismicos.find((evento) => evento.getId() === id)
-    if (!evento) throw new Error("Evento no encontrado")
+  // ==========================================
+  // PASOS 11-13: RECHAZAR EVENTO
+  // ==========================================
 
-    const estadoActual = evento.getEstadoActual()
+  /**
+   * Pasos 11-13 del CU: Rechazar evento
+   * Cambia el estado a rechazado
+   * @param identificador - ID del evento
+   */
+  async rechazarEvento(identificador: string): Promise<void> {
+    const connection = await this.pool.getConnection()
+    try {
+      await connection.beginTransaction()
 
-    if (!estadoActual.esAmbito("EventoSismico")) return
+      const [eventoRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM EventoSismico WHERE id = ? OR identificador_evento = ?',
+        [identificador, identificador]
+      )
+      if (eventoRows.length === 0) throw new Error('Evento no encontrado')
+      
+      const eventoId = eventoRows[0].id
 
-    const usuario = Sesion.getSesionActual().getUsuarioLogueado()
-    const empleado = usuario.getRILogueado()
+      const [estadoRows] = await connection.query<RowDataPacket[]>(
+        "SELECT id FROM Estado WHERE nombre = 'rechazado'"
+      )
+      const estadoRechazadoId = estadoRows[0].id
 
-    evento.cambiarEstadoA(ESTADOS.derivado_experto, empleado)
+      await connection.query(
+        'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
+        [eventoId]
+      )
+
+      await connection.query(
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NULL, ?, ?, ?)',
+        [estadoRechazadoId, eventoId, 1]
+      )
+
+      await connection.query(
+        'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
+        [estadoRechazadoId, eventoId]
+      )
+
+      await connection.commit()
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      connection.release()
+    }
   }
 
+  // ==========================================
+  // FLUJO ALTERNATIVO: CONFIRMAR EVENTO
+  // ==========================================
+
+  /**
+   * Flujo alternativo: Confirmar evento
+   * Cambia el estado a confirmado
+   * @param identificador - ID del evento
+   */
+  async confirmarEvento(identificador: string): Promise<void> {
+    const connection = await this.pool.getConnection()
+    try {
+      await connection.beginTransaction()
+
+      const [eventoRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM EventoSismico WHERE id = ? OR identificador_evento = ?',
+        [identificador, identificador]
+      )
+      if (eventoRows.length === 0) throw new Error('Evento no encontrado')
+      
+      const eventoId = eventoRows[0].id
+
+      const [estadoRows] = await connection.query<RowDataPacket[]>(
+        "SELECT id FROM Estado WHERE nombre = 'confirmado'"
+      )
+      const estadoConfirmadoId = estadoRows[0].id
+
+      await connection.query(
+        'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
+        [eventoId]
+      )
+
+      await connection.query(
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NULL, ?, ?, ?)',
+        [estadoConfirmadoId, eventoId, 1]
+      )
+
+      await connection.query(
+        'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
+        [estadoConfirmadoId, eventoId]
+      )
+
+      await connection.commit()
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      connection.release()
+    }
+  }
+
+  // ==========================================
+  // FLUJO ALTERNATIVO: DERIVAR A EXPERTO
+  // ==========================================
+
+  /**
+   * Flujo alternativo: Derivar evento a experto
+   * Cambia el estado a derivado_experto
+   * @param identificador - ID del evento
+   */
+  async derivarEvento(identificador: string): Promise<void> {
+    const connection = await this.pool.getConnection()
+    try {
+      await connection.beginTransaction()
+
+      const [eventoRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM EventoSismico WHERE id = ? OR identificador_evento = ?',
+        [identificador, identificador]
+      )
+      if (eventoRows.length === 0) throw new Error('Evento no encontrado')
+      
+      const eventoId = eventoRows[0].id
+
+      const [estadoRows] = await connection.query<RowDataPacket[]>(
+        "SELECT id FROM Estado WHERE nombre = 'derivado_experto'"
+      )
+      const estadoDerivadoId = estadoRows[0].id
+
+      await connection.query(
+        'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
+        [eventoId]
+      )
+
+      await connection.query(
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NULL, ?, ?, ?)',
+        [estadoDerivadoId, eventoId, 1]
+      )
+
+      await connection.query(
+        'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
+        [estadoDerivadoId, eventoId]
+      )
+
+      await connection.commit()
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      connection.release()
+    }
+  }
 }

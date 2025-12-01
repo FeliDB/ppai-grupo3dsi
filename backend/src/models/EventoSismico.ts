@@ -1,6 +1,4 @@
-import { eventosSismicos } from "../data/data"
 import { ESTADOS } from "../data/estados"
-import { SERIES_TEMPORALES } from "../data/seriesTemporales"
 import CambioEstado from "./CambioEstado"
 import ClasificacionSismo from "./ClasificacionSismo"
 import Empleado from "./Empleado"
@@ -9,6 +7,7 @@ import Estado from "./Estado"
 import MagnitudRichter from "./MagnitudRichter"
 import OrigenDeGeneracion from "./OrigenDeGeneracion"
 import SerieTemporal from "./SerieTemporal"
+import AlcanceSismo from "./AlcanceSismo"
 
 type SeriesPorEstacion = {
   estacion: EstacionSismologica;
@@ -42,6 +41,7 @@ export default class EventoSismico {
   private clasificacionSismo: ClasificacionSismo
   private origenDeGeneracion: OrigenDeGeneracion
   private serieTemporal: SerieTemporal[]
+  private alcanceSismo: AlcanceSismo | null = null
 
 
   constructor(
@@ -145,7 +145,7 @@ export default class EventoSismico {
       longitudEpicentro: this.longitudEpicentro,
       longitudHipocentro: this.longitudHipocentro,
       valorMagnitud: this.valorMagnitud,
-      estadoActual: this.estadoActual,
+      estadoActualNombre: this.estadoActual.getNombreEstado(),
       cambioEstado: this.cambioEstado
     }
   }
@@ -154,14 +154,35 @@ export default class EventoSismico {
   //   return this.alcances
   // }
 
-  // setea el atributo estadoActual al ultimo estado de la lista de cambioEstado
-  setEstadoActual() {
-    const actual = this.cambioEstado.find(estado => estado.esEstadoActual())
-    if (!actual) throw new Error("No hay estado")
-    this.estadoActual = actual.getEstado()
+  // ==========================================
+  // MÉTODOS SETTERS PARA PATRÓN STATE
+  // Permiten que los estados concretos modifiquen el contexto
+  // ==========================================
+
+  /**
+   * Agrega un nuevo cambio de estado al historial
+   * Finaliza el estado actual antes de agregar el nuevo
+   * @param cambio - Nuevo CambioEstado a agregar
+   */
+  public setCambioEstado(cambio: CambioEstado): void {
+    // Finalizar el estado actual
+    const estadoActualCambio = this.cambioEstado.find(c => c.esEstadoActual())
+    if (estadoActualCambio) {
+      estadoActualCambio.setFechaHoraFin(cambio.getFechaHoraInicio())
+    }
+    // Agregar el nuevo cambio
+    this.cambioEstado.push(cambio)
   }
 
-  getEstadoActual(): Estado {
+  /**
+   * Actualiza el puntero al estado actual
+   * @param estado - Nuevo estado actual
+   */
+  public setEstadoActual(estado: Estado): void {
+    this.estadoActual = estado
+  }
+
+  public getEstadoActual(): Estado {
     return this.estadoActual
   }
 
@@ -185,33 +206,62 @@ export default class EventoSismico {
     // Genera una nueva instancia de CambioEstado y agrega el nuevo estado a la lista
     const cambioEstado = new CambioEstado(nuevoEstado, fechaHoraActual, null, empleado)
     this.cambioEstado.push(cambioEstado)
-    this.setEstadoActual()
+    this.setEstadoActual(nuevoEstado)
   }
 
-  //TODO* REVISAR PORQUE NOSE, ES EL PASO 28
-  /** Paso 28 – Bloqueo del evento */
+  // ==========================================
+  // MÉTODOS DE DELEGACIÓN AL PATRÓN STATE
+  // El contexto (EventoSismico) delega las transiciones al estado actual
+  // Esto implementa el polimorfismo del patrón State
+  // ==========================================
 
-  public bloquear(fechaActual: Date, empleado: Empleado) {
-    
-    // MENSAJE 29: buscarUltimoCambioEstado()
-    const ultimoCambio = this.buscarUltimoCambioEstado();
-
-    if (ultimoCambio) {
-      // MENSAJE 30: esActual()
-      if (ultimoCambio.esEstadoActual()) {
-        // MENSAJE 31: setFechaHoraFin()
-        ultimoCambio.setFechaHoraFin(fechaActual);
-      }
-    }
-     const nuevoCambio = this.crearCambioEstado(fechaActual, empleado);
-    
-    // Se añade el nuevo cambio al historial
-    this.cambioEstado.push(nuevoCambio);
-    // Se actualiza el puntero al estado actual del evento
-    this.estadoActual = nuevoCambio.getEstado();
-    
+  /**
+   * Bloquear evento para revisión (paso 4 del CU)
+   * DELEGA al estado actual - solo AutoDetectado y PendienteRevision permiten esta transición
+   * @param fechaHoraActual - Fecha y hora del bloqueo
+   * @param empleado - Empleado responsable
+   */
+  public bloquear(fechaHoraActual: Date, empleado: Empleado): void {
+    // Delegación polimórfica al estado actual
+    this.estadoActual.bloquear(this, fechaHoraActual, empleado)
   }
 
+  /**
+   * Rechazar evento (paso 11-13 del CU)
+   * DELEGA al estado actual - solo BloqueadoEnRevision permite esta transición
+   * @param fechaHoraActual - Fecha y hora del rechazo (fecha de revisión)
+   * @param empleado - Empleado responsable de la revisión
+   */
+  public rechazar(fechaHoraActual: Date, empleado: Empleado): void {
+    // Delegación polimórfica al estado actual
+    this.estadoActual.rechazar(this, fechaHoraActual, empleado)
+  }
+
+  /**
+   * Confirmar evento (flujo alternativo)
+   * DELEGA al estado actual - solo BloqueadoEnRevision permite esta transición
+   * @param fechaHoraActual - Fecha y hora de confirmación
+   * @param empleado - Empleado responsable
+   */
+  public confirmar(fechaHoraActual: Date, empleado: Empleado): void {
+    // Delegación polimórfica al estado actual
+    this.estadoActual.confirmar(this, fechaHoraActual, empleado)
+  }
+
+  /**
+   * Derivar a experto (flujo alternativo)
+   * DELEGA al estado actual - solo BloqueadoEnRevision permite esta transición
+   * @param fechaHoraActual - Fecha y hora de derivación
+   * @param empleado - Empleado responsable
+   */
+  public derivarAExperto(fechaHoraActual: Date, empleado: Empleado): void {
+    // Delegación polimórfica al estado actual
+    this.estadoActual.derivarAExperto(this, fechaHoraActual, empleado)
+  }
+
+  // ==========================================
+  // MÉTODOS AUXILIARES PRIVADOS
+  // ==========================================
 
   private buscarUltimoCambioEstado(): CambioEstado | undefined {
     if (this.cambioEstado.length === 0) {
@@ -219,27 +269,6 @@ export default class EventoSismico {
     }
     return this.cambioEstado[this.cambioEstado.length - 1];
   }
-
-  private crearCambioEstado(fechaInicio: Date, empleado: Empleado): CambioEstado {
-
-    // Se asume que el estado a crear es 'bloqueado_en_revision' por el contexto.
-    const estadoBloqueado = ESTADOS.bloqueado_en_revision;
-    
-    // MENSAJE 33: new()
-    const nuevoCambio = new CambioEstado(
-      estadoBloqueado,
-      fechaInicio,
-      null, // La fecha de fin es null porque es el nuevo estado actual
-      empleado
-    );
-    
-    // El MENSAJE 34: setEstado() se interpreta como la acción de asignar este nuevo
-    // estado como el actual, lo cual se hace en el método `bloquear`.
-    return nuevoCambio;
-  }
-
-  //TODO HASTA ACA ES EL PASO 28 REVISARR
-  //-----------------------------------------
 
   
 
@@ -295,25 +324,51 @@ export default class EventoSismico {
     return seriesPorEstacion;
   }
 
-/*TODO:
-  -----------------------------------------------------------------
-  -------------------------------------------------------------
-  --------------------------------------------------*/
+  // ==========================================
+  // MÉTODOS DE CONSULTA DE ESTADO (delegación)
+  // ==========================================
 
-
-  /** Paso 5 – Consulta directa desde Gestor */
+  /** Paso 5 – Consulta directa desde Gestor */
   public esAutodetectado(): boolean {
     // Paso 6 – Delegación a Estado
     return this.estadoActual.esAutoDetectado();
   }
 
-  /** Paso 7 – Consulta directa desde Gestor */
+  /** Paso 7 – Consulta directa desde Gestor */
   public esPendienteDeRevision(): boolean {
     // Paso 8 – Delegación a Estado
     return this.estadoActual.esPendienteDeRevision();
   }
 
-/** Paso 9 – DTO con los campos principales */
+  public esBloqueadoEnRevision(): boolean {
+    return this.estadoActual.esBloqueadoEnRevision();
+  }
+
+  public esConfirmado(): boolean {
+    return this.estadoActual.esConfirmado();
+  }
+
+  public esRechazado(): boolean {
+    return this.estadoActual.esRechazado();
+  }
+
+  public esDerivadoExperto(): boolean {
+    return this.estadoActual.esDerivadoExperto();
+  }
+
+  // ==========================================
+  // GETTERS PARA ALCANCE
+  // ==========================================
+
+  public getAlcanceSismo(): AlcanceSismo | null {
+    return this.alcanceSismo;
+  }
+
+  public setAlcanceSismo(alcance: AlcanceSismo): void {
+    this.alcanceSismo = alcance;
+  }
+
+/** Paso 9 – DTO con los campos principales */
   getDatosPrincipaless(): DatosPrincipales {
     return {
       id: this.id,

@@ -195,6 +195,9 @@ INSERT INTO OrigenDeGeneracion (id, nombre) VALUES
 -- Evento 1: Magnitud 3.9 -> auto_detectado (id 2)
 INSERT INTO EventoSismico (id, identificador_evento, fecha_hora_ocurrencia, latitud_epicentro, latitud_hipocentro, longitud_epicentro, longitud_hipocentro, valor_magnitud, profundidad, origen_id, estado_actual_id) VALUES
 (1, 'ES-001-2025', NOW(), -24.7821, -24.7900, -65.4232, -65.4300, 3.9, 145, 3, 2);
+-- Evento 2: Magnitud 6.5 -> pendiente_de_revision (id 3)
+INSERT INTO EventoSismico (id, identificador_evento, fecha_hora_ocurrencia, latitud_epicentro, latitud_hipocentro, longitud_epicentro, longitud_hipocentro, valor_magnitud, profundidad, origen_id, estado_actual_id) VALUES
+(2, 'ES-002-2025', NOW(), -33.4489, -33.4600, -70.6693, -70.6800, 6.5, 30, 1, 3);
 
 -- Cambio de Estado Inicial para Evento 1
 INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES
