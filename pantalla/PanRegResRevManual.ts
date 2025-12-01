@@ -14,6 +14,65 @@
  * 11-13. AS selecciona acción -> Sistema valida y actualiza estado
  */
 export default class PantRegResRevManual {
+    private btnRegResultadoRevisionManual: boolean = false;
+    private btnSeleccionEvento: boolean = false;
+    private btnVisualizarMapa: boolean = false;
+    private btnModificarDatos: boolean = false;
+    private btnRechazo: boolean = false;
+    private gestor: any; // GestorRegResEventoSismico
+    private eventoSeleccionado: number | null = null;
+
+    constructor() {
+        // Inicializar gestor si es necesario
+    }
+
+    opcRegResultadoRevisionManual(): Array<Object> {
+        this.abrirVentana();
+        return this.gestor?.opcRegResultadoRevisionManual() || [];
+    }
+
+    abrirVentana(): void {
+        // Lógica para abrir la ventana (ya implementada en render)
+    }
+
+    mostrarEventoSismicoParaSeleccion(eventos: Array<Object>): Array<Object> {
+        // Lógica ya implementada en cargarEventos del script
+        return eventos;
+    }
+
+    tomarSeleccionEventoSismico(eventoId: number): Object {
+        this.eventoSeleccionado = eventoId;
+        // El gestor toma fecha/hora actual y busca empleado logueado
+        this.gestor?.tomarFechaHoraActual();
+        this.gestor?.buscarEmpleadoLogueado();
+        return this.gestor?.tomarSeleccionEventoSismico(eventoId) || {};
+    }
+
+    mostrarDatosEventoSismicoSeleccionado(datos: Object): void {
+        // Lógica ya implementada en cargarDatosEvento del script
+    }
+
+    habilitarSeleccionMapa(): void {
+        this.btnVisualizarMapa = true;
+    }
+
+    habilitarModificacionDatos(): void {
+        this.btnModificarDatos = true;
+    }
+
+    solicitarSeleccionRechazo(): void {
+        this.btnRechazo = true;
+    }
+
+    tomarSeleccionRechazo(): boolean {
+        return this.btnRechazo;
+    }
+
+    validarDatos(): boolean {
+        // Validar que exista magnitud, alcance y origen de generación
+        return this.eventoSeleccionado !== null;
+    }
+
     render(): string {
         return `
         <!DOCTYPE html>
@@ -24,95 +83,110 @@ export default class PantRegResRevManual {
             <title>Registrar Resultado de Revisión Manual - Sistema Sísmico</title>
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; min-height: 100vh; }
-                .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fafafa; min-height: 100vh; color: #333; }
+                .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
                 
                 /* Header */
                 .header { 
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    color: white; padding: 30px; border-radius: 12px; 
-                    margin-bottom: 30px; text-align: center;
-                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                    background: #fff; 
+                    padding: 32px; 
+                    border: 1px solid #e1e5e9;
+                    margin-bottom: 24px; 
+                    text-align: center;
                 }
-                .header h1 { margin: 0; font-size: 2.2em; font-weight: 600; }
-                .header p { margin-top: 10px; opacity: 0.9; font-size: 1.1em; }
+                .header h1 { margin: 0; font-size: 1.75rem; font-weight: 600; color: #1a1a1a; }
+                .header p { margin-top: 8px; color: #666; font-size: 0.95rem; }
+                .usuario-info { margin-top: 16px; padding: 12px; background: #f8f9fa; border: 1px solid #e9ecef; }
+                .usuario-info span { font-size: 0.9rem; color: #495057; }
                 
                 /* Sections */
                 .section { 
-                    background: white; border-radius: 12px; 
-                    box-shadow: 0 2px 10px rgba(0,0,0,0.08); 
-                    padding: 25px; margin-bottom: 20px; 
+                    background: #fff; 
+                    border: 1px solid #e1e5e9;
+                    padding: 24px; 
+                    margin-bottom: 16px; 
                 }
                 .section h2 { 
-                    color: #333; margin-top: 0; margin-bottom: 20px;
-                    padding-bottom: 12px; border-bottom: 3px solid #667eea; 
-                    font-size: 1.4em;
+                    color: #1a1a1a; 
+                    margin-bottom: 20px;
+                    padding-bottom: 8px; 
+                    border-bottom: 1px solid #e1e5e9; 
+                    font-size: 1.25rem;
+                    font-weight: 600;
                 }
                 
                 /* Evento Items */
                 .evento-item { 
-                    background: #f8f9fa; border: 1px solid #e9ecef; 
-                    border-radius: 10px; padding: 20px; margin-bottom: 15px; 
-                    transition: all 0.3s ease;
+                    background: #fff; 
+                    border: 1px solid #e1e5e9; 
+                    padding: 20px; 
+                    margin-bottom: 12px; 
+                    transition: border-color 0.2s;
                 }
                 .evento-item:hover { 
-                    transform: translateY(-3px); 
-                    box-shadow: 0 6px 20px rgba(0,0,0,0.12); 
-                    border-color: #667eea;
+                    border-color: #007bff;
                 }
                 .evento-info { 
                     display: grid; 
-                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
-                    gap: 15px; margin-bottom: 15px; 
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+                    gap: 16px; 
+                    margin-bottom: 16px; 
                 }
                 .info-item { 
-                    background: white; padding: 12px; border-radius: 8px; 
-                    border-left: 4px solid #667eea; 
+                    background: #f8f9fa; 
+                    padding: 12px; 
+                    border-left: 3px solid #007bff; 
                 }
-                .info-label { font-weight: 600; color: #6c757d; font-size: 0.85em; text-transform: uppercase; }
-                .info-value { color: #212529; font-size: 1.1em; margin-top: 4px; }
+                .info-label { font-weight: 500; color: #666; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+                .info-value { color: #1a1a1a; font-size: 0.95rem; margin-top: 4px; }
                 
                 /* Buttons */
                 .btn { 
-                    border: none; padding: 12px 24px; border-radius: 8px; 
-                    cursor: pointer; font-size: 1em; font-weight: 500;
-                    transition: all 0.3s ease; margin-right: 10px; margin-bottom: 10px;
+                    border: 1px solid #ddd; 
+                    padding: 10px 20px; 
+                    cursor: pointer; 
+                    font-size: 0.9rem; 
+                    font-weight: 500;
+                    transition: all 0.2s; 
+                    margin-right: 8px; 
+                    margin-bottom: 8px;
+                    background: #fff;
                 }
-                .btn-primary { background: #667eea; color: white; }
-                .btn-primary:hover { background: #5a6fd6; transform: translateY(-2px); }
-                .btn-success { background: #28a745; color: white; }
-                .btn-success:hover { background: #218838; }
-                .btn-danger { background: #dc3545; color: white; }
-                .btn-danger:hover { background: #c82333; }
-                .btn-warning { background: #ffc107; color: #212529; }
-                .btn-warning:hover { background: #e0a800; }
-                .btn-secondary { background: #6c757d; color: white; }
-                .btn-secondary:hover { background: #5a6268; }
+                .btn:hover { background: #f8f9fa; }
+                .btn-primary { background: #007bff; color: white; border-color: #007bff; }
+                .btn-primary:hover { background: #0056b3; border-color: #0056b3; }
+                .btn-success { background: #28a745; color: white; border-color: #28a745; }
+                .btn-success:hover { background: #1e7e34; border-color: #1e7e34; }
+                .btn-danger { background: #dc3545; color: white; border-color: #dc3545; }
+                .btn-danger:hover { background: #c82333; border-color: #c82333; }
+                .btn-warning { background: #ffc107; color: #212529; border-color: #ffc107; }
+                .btn-warning:hover { background: #e0a800; border-color: #e0a800; }
+                .btn-secondary { background: #6c757d; color: white; border-color: #6c757d; }
+                .btn-secondary:hover { background: #545b62; border-color: #545b62; }
                 
                 /* Panel de Acciones */
                 .acciones-panel {
-                    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                    border: 2px solid #667eea;
-                    border-radius: 12px;
-                    padding: 25px;
-                    margin-top: 20px;
+                    background: #fff;
+                    border: 1px solid #e1e5e9;
+                    padding: 24px;
+                    margin-top: 16px;
                 }
                 .acciones-panel h3 {
-                    color: #667eea;
-                    margin-bottom: 15px;
-                    font-size: 1.2em;
+                    color: #1a1a1a;
+                    margin-bottom: 16px;
+                    font-size: 1.1rem;
+                    font-weight: 600;
                 }
                 .evento-seleccionado-info {
-                    background: white;
-                    padding: 15px;
-                    border-radius: 8px;
+                    background: #f8f9fa;
+                    padding: 16px;
                     margin-bottom: 20px;
-                    border-left: 4px solid #667eea;
+                    border-left: 3px solid #007bff;
                 }
                 .acciones-buttons {
                     display: flex;
                     flex-wrap: wrap;
-                    gap: 10px;
+                    gap: 8px;
                 }
                 
                 /* Datos del Evento */
@@ -121,38 +195,52 @@ export default class PantRegResRevManual {
                     margin-top: 20px;
                     padding: 20px;
                     background: #f8f9fa;
-                    border-radius: 10px;
+                    border: 1px solid #e9ecef;
                 }
                 .datos-evento.visible { display: block; }
                 .datos-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                    gap: 15px;
+                    gap: 16px;
+                }
+                
+                /* Sismograma */
+                .sismograma-section {
+                    margin-top: 24px;
+                    padding-top: 20px;
+                    border-top: 1px solid #e1e5e9;
+                }
+                .sismograma-container {
+                    background: #fff;
+                    padding: 20px;
+                    border: 1px solid #e1e5e9;
+                    text-align: center;
+                }
+                .sismograma-container img {
+                    max-width: 100%;
+                    height: auto;
+                    border: 1px solid #ddd;
                 }
                 
                 /* Estados */
                 .estado-badge {
                     display: inline-block;
-                    padding: 4px 12px;
-                    border-radius: 20px;
-                    font-size: 0.85em;
+                    padding: 4px 8px;
+                    font-size: 0.75rem;
                     font-weight: 500;
+                    border: 1px solid #ddd;
+                    background: #f8f9fa;
+                    color: #495057;
                 }
-                .estado-auto_detectado { background: #fff3cd; color: #856404; }
-                .estado-pendiente_de_revision { background: #cce5ff; color: #004085; }
-                .estado-bloqueado_en_revision { background: #d4edda; color: #155724; }
-                .estado-confirmado { background: #28a745; color: white; }
-                .estado-rechazado { background: #dc3545; color: white; }
-                .estado-derivado_experto { background: #17a2b8; color: white; }
                 
                 /* Mensajes */
-                .mensaje { padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none; }
-                .mensaje.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-                .mensaje.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+                .mensaje { padding: 12px 16px; margin-bottom: 16px; display: none; border: 1px solid #ddd; }
+                .mensaje.success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
+                .mensaje.error { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
                 .mensaje.visible { display: block; }
                 
-                .no-eventos { text-align: center; color: #6c757d; font-style: italic; padding: 40px; }
-                .loading { text-align: center; padding: 40px; color: #667eea; }
+                .no-eventos { text-align: center; color: #666; padding: 40px; }
+                .loading { text-align: center; padding: 40px; color: #666; }
             </style>
         </head>
         <body>
@@ -160,6 +248,9 @@ export default class PantRegResRevManual {
             <div class="header">
                 <h1>🌍 Registrar Resultado de Revisión Manual</h1>
                 <p>Caso de Uso - Sistema de Monitoreo Sísmico </p>
+                <div class="usuario-info">
+                    <span id="usuario-logueado">👤 Cargando usuario...</span>
+                </div>
             </div>
             
             <div id="mensaje" class="mensaje"></div>
@@ -180,6 +271,13 @@ export default class PantRegResRevManual {
                 <div id="datos-evento" class="datos-evento">
                     <h4 style="margin-bottom: 15px;">📊Datos Sísmicos del Evento</h4>
                     <div id="datos-contenido" class="datos-grid"></div>
+                    
+                    <div class="sismograma-section">
+                        <h4 style="margin: 20px 0 15px 0;">📈Sismograma del Evento</h4>
+                        <div class="sismograma-container">
+                            <img id="sismograma-img" src="/sismograma.jpg" alt="Sismograma del evento sísmico" />
+                        </div>
+                    </div>
                 </div>
                 
                 <p style="margin: 20px 0; color: #495057;">
@@ -187,6 +285,8 @@ export default class PantRegResRevManual {
                 </p>
                 
                 <div class="acciones-buttons">
+                    <button id="btn-visualizar-mapa" class="btn btn-primary">🗺️ Visualizar Mapa</button>
+                    <button id="btn-editar-datos" class="btn btn-primary">✏️ Editar Datos de Evento Sísmico</button>
                     <button id="btn-confirmar" class="btn btn-success">✅Confirmar Evento</button>
                     <button id="btn-rechazar" class="btn btn-danger">❌Rechazar Evento</button>
                     <button id="btn-derivar" class="btn btn-warning">👨‍🔬Solicitar Revisión a Experto</button>
@@ -272,8 +372,8 @@ export default class PantRegResRevManual {
                     const datos = await resp.json();
                     
                     let html = '';
-                    html += '<div class="info-item"><div class="info-label">Clasificación</div><div class="info-value">' + (datos.clasificacion?.getNombreClasificacion?.() || datos.clasificacion?.nombre || 'N/A') + '</div></div>';
-                    html += '<div class="info-item"><div class="info-label">Origen de Generación</div><div class="info-value">' + (datos.origenDeGeneracion?.getNombre?.() || datos.origenDeGeneracion?.nombre || 'N/A') + '</div></div>';
+                    html += '<div class="info-item"><div class="info-label">Clasificación</div><div class="info-value">' + (datos.clasificacion?.nombre || 'N/A') + '</div></div>';
+                    html += '<div class="info-item"><div class="info-label">Origen de Generación</div><div class="info-value">' + (datos.origenDeGeneracion?.nombre || 'N/A') + '</div></div>';
                     
                     if (datos.seriesTemporales && datos.seriesTemporales.length > 0) {
                         html += '<div class="info-item" style="grid-column: 1 / -1;"><div class="info-label">Series Temporales por Estación</div><div class="info-value">' + datos.seriesTemporales.length + ' estación(es) registrada(s)</div></div>';
@@ -323,10 +423,30 @@ export default class PantRegResRevManual {
                 document.getElementById('datos-evento').classList.remove('visible');
             }
 
+            // Cargar datos del usuario logueado
+            async function cargarUsuarioLogueado() {
+                try {
+                    const resp = await fetch('/api/usuario/logueado');
+                    const usuario = await resp.json();
+                    
+                    const info = '👤 ' + usuario.empleado.nombre + ' ' + usuario.empleado.apellido + ' (' + usuario.nombre_usuario + ') - ' + usuario.empleado.mail;
+                    document.getElementById('usuario-logueado').textContent = info;
+                } catch (err) {
+                    document.getElementById('usuario-logueado').textContent = '👤 Usuario no disponible';
+                }
+            }
+
             // Event Listeners
             window.addEventListener('DOMContentLoaded', function() {
+                cargarUsuarioLogueado();
                 cargarEventos();
                 
+                document.getElementById('btn-visualizar-mapa').addEventListener('click', () => {
+                    mostrarMensaje('Funcionalidad "Visualizar Mapa" sin implementar', 'error');
+                });
+                document.getElementById('btn-editar-datos').addEventListener('click', () => {
+                    mostrarMensaje('Funcionalidad "Editar Datos de Evento Sísmico" sin implementar', 'error');
+                });
                 document.getElementById('btn-confirmar').addEventListener('click', () => ejecutarAccion('confirmar'));
                 document.getElementById('btn-rechazar').addEventListener('click', () => ejecutarAccion('rechazar'));
                 document.getElementById('btn-derivar').addEventListener('click', () => ejecutarAccion('derivar'));

@@ -89,7 +89,7 @@ export default class EventoSismico {
   getId() { return this.id }
   getFechaHoraOcurrencia() { return this.fechaHoraOcurrencia }
   getValorMagnitud() { return this.valorMagnitud }
-  getMagnitud() { return this.magnitud }
+  getMagnitud(): number { return this.valorMagnitud }
   getProfundidad() { return this.profundidad }
   getOrigenDeGeneracion(): OrigenDeGeneracion { return this.origenDeGeneracion }
   getLatitudEpicentro() { return this.latitudEpicentro }

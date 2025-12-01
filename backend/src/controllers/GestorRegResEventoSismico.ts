@@ -129,15 +129,58 @@ export default class GestorRegResEventoSismico {
 
   /**
    * Paso 24 del CU: Buscar empleado logueado en el sistema
+   * Utiliza la sesión para obtener el usuario logueado
    */
   async buscarEmpleadoLogueado(): Promise<void> {
-    // Obtiene el usuario logueado de la sesión
-    const [rows] = await this.pool.query<RowDataPacket[]>(
-      'SELECT id, nombre_usuario FROM Usuario WHERE id = 1'
-    )
+    const sesion = this.obtenerSesionActual();
+    const usuario = sesion.obtenerUsuarioLogueado();
+    this.usuarioLogueado = usuario.getEmpleado();
+  }
+
+  /**
+   * Obtiene los datos completos del usuario logueado
+   */
+  async obtenerUsuarioLogueado(): Promise<any> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(`
+      SELECT 
+        u.id,
+        u.nombre_usuario,
+        e.nombre,
+        e.apellido,
+        e.mail,
+        e.telefono
+      FROM Sesion s
+      JOIN Usuario u ON s.usuario_id = u.id
+      JOIN Empleado e ON u.empleado_id = e.id
+      WHERE s.id = 1
+    `);
+    
     if (rows.length > 0) {
-      this.usuarioLogueado = rows[0]
+      const row = rows[0];
+      return {
+        id: row.id,
+        nombre_usuario: row.nombre_usuario,
+        empleado: {
+          nombre: row.nombre,
+          apellido: row.apellido,
+          mail: row.mail,
+          telefono: row.telefono
+        }
+      };
     }
+    return null;
+  }
+
+  /**
+   * Obtiene la sesión actual del sistema
+   */
+  private obtenerSesionActual(): any {
+    // Simula obtener la sesión actual
+    return {
+      obtenerUsuarioLogueado: () => ({
+        getEmpleado: () => ({ id: 1, nombreUsuario: 'admin' })
+      })
+    };
   }
 
   // ==========================================
@@ -250,7 +293,8 @@ export default class GestorRegResEventoSismico {
 
     return {
       evento,
-      origenGeneracion: evento.origenGeneracion,
+      clasificacion: { nombre: evento.profundidad > 70 ? 'Profundo' : 'Superficial' },
+      origenDeGeneracion: { nombre: evento.origenGeneracion },
       seriesTemporales: series
     }
   }

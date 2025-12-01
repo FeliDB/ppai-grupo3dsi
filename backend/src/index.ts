@@ -18,6 +18,7 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import path from 'path'
 
 import GestorRegResEventoSismico from './controllers/GestorRegResEventoSismico'
 import PantRegResRevManual from '../../pantalla/PanRegResRevManual'
@@ -139,6 +140,35 @@ app.post('/api/eventos/:id/derivar', async (req, res) => {
     console.error('ERROR:', error)
     res.status(500).json({ error: error.message ?? 'Error al derivar evento' })
   }
+})
+
+/**
+ * Obtener datos del usuario logueado
+ */
+app.get('/api/usuario/logueado', async (_req, res) => {
+  try {
+    const usuario = await gestor.obtenerUsuarioLogueado()
+    if (usuario) {
+      res.json(usuario)
+    } else {
+      res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+  } catch (error: any) {
+    console.error('ERROR:', error)
+    res.status(500).json({ error: error.message ?? 'Error al obtener usuario' })
+  }
+})
+
+/**
+ * Servir imagen del sismograma
+ */
+app.get('/sismograma.jpg', (_req, res) => {
+  const imagePath = path.join(__dirname, '../../sismograma.jpg')
+  res.sendFile(imagePath, (err) => {
+    if (err) {
+      res.status(404).json({ error: 'Imagen no encontrada' })
+    }
+  })
 })
 
 // ==========================================

@@ -1,19 +1,18 @@
 
 export default class Usuario {
-  private nombreUsuario: string
-  private contraseña: string
-  
+  private nombreUsuario: string;
+  private contrasena: string;
 
-  constructor(nombreUsuario: string,contraseña: string,) {
-    this.nombreUsuario = nombreUsuario
-    this.contraseña = contraseña
-    
+  constructor(nombreUsuario: string, contrasena: string) {
+    this.nombreUsuario = nombreUsuario;
+    this.contrasena = contrasena;
   }
 
-
-  getEmpleado(){
-    return this.nombreUsuario
-    return this.contraseña
+  getEmpleado(): Usuario {
+    return this;
   }
 
+  getNombreUsuario(): string {
+    return this.nombreUsuario;
+  }
 }
