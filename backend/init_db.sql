@@ -200,8 +200,6 @@ INSERT INTO EventoSismico (id, identificador_evento, fecha_hora_ocurrencia, lati
 (2, 'ES-002-2025', NOW(), -33.4489, -33.4600, -70.6693, -70.6800, 6.5, 30, 1, 3);
 
 -- Cambio de Estado Inicial para Evento 1
-INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES
-(NOW(), NULL, 2, 1, NULL);
 
 -- 9. Series Temporales
 -- Serie 1 (Asociada a Evento 1, Sismografo 1)

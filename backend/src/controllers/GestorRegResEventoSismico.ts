@@ -274,41 +274,62 @@ export default class GestorRegResEventoSismico {
     if (eventoRows.length === 0) throw new Error('Evento no encontrado')
     const evento = eventoRows[0]
 
-    // Buscar series temporales con estación
-    const [series] = await this.pool.query<RowDataPacket[]>(`
-      SELECT 
-        st.id,
-        st.fecha_hora_inicio_registro as fechaHoraInicioRegistro,
-        st.fecha_hora_registro as fechaHoraRegistro,
-        st.frecuencia_muestreo as frecuenciaMuestreo,
-        st.condicion_alarma as condicionAlarma,
-        s.identificador as sismografoId,
-        es.codigo_estacion as codigoEstacion,
-        es.nombre as nombreEstacion
-      FROM SerieTemporal st
-      JOIN Sismografo s ON st.sismografo_id = s.id
-      JOIN EstacionSismologica es ON s.estacion_id = es.id
-      WHERE st.evento_sismico_id = ?
-    `, [evento.id])
+    // Paso 45-53: Buscar series temporales con muestras y clasificar por estación
+    const seriesPorEstacion = await this.buscarSeriesTemporalesConMuestras(evento.id)
+
+    // Paso 38-39: Calcular alcance del sismo
+    const todasLasSeries = Object.values(seriesPorEstacion).flat()
+    const alcance = this.calcularAlcanceSismo(evento, todasLasSeries)
 
     return {
       evento,
+      alcance: { nombre: alcance },
       clasificacion: { nombre: evento.profundidad > 70 ? 'Profundo' : 'Superficial' },
       origenDeGeneracion: { nombre: evento.origenGeneracion },
-      seriesTemporales: series
+      seriesPorEstacion
     }
   }
 
+  /**
+   * Paso 38-39: Calcular alcance del sismo basado en distancia epicentral
+   * @param evento - Datos del evento sísmico
+   * @param series - Series temporales con estaciones
+   * @returns Alcance del sismo (local, regional, tele_sismo)
+   */
+  private calcularAlcanceSismo(evento: any, series: any[]): string {
+    if (series.length === 0) return 'N/A'
+    
+    // Calcular distancia mínima a cualquier estación
+    let distanciaMinima = Infinity
+    
+    for (const serie of series) {
+      const kmPorGrado = 111 // 1 grado ≈ 111 km
+      const dLat = evento.latitudEpicentro - serie.estacionLatitud
+      const dLong = evento.longitudEpicentro - serie.estacionLongitud
+      const distancia = Math.sqrt(dLat * dLat + dLong * dLong) * kmPorGrado
+      
+      if (distancia < distanciaMinima) {
+        distanciaMinima = distancia
+      }
+    }
+    
+    // Clasificar según distancia epicentral
+    if (distanciaMinima <= 100) return 'local'
+    if (distanciaMinima <= 1000) return 'regional'
+    return 'tele_sismo'
+  }
+
   // ==========================================
-  // PASO 45: BUSCAR SERIES TEMPORALES
+  // PASO 45-53: BUSCAR SERIES TEMPORALES CON MUESTRAS
   // ==========================================
 
   /**
-   * Paso 45 del CU: Buscar series temporales del evento
+   * Paso 45-53 del CU: Buscar series temporales con muestras y clasificar por estación
    * @param eventoId - ID del evento
-   * @returns Lista de series temporales
+   * @returns Series temporales clasificadas por estación con muestras y detalles
    */
-  async buscarSeriesTemporales(eventoId: number | string): Promise<any[]> {
+  async buscarSeriesTemporalesConMuestras(eventoId: number | string): Promise<any> {
+    // Paso 45-46: Buscar series temporales
     const [series] = await this.pool.query<RowDataPacket[]>(`
       SELECT 
         st.id,
@@ -318,13 +339,67 @@ export default class GestorRegResEventoSismico {
         st.condicion_alarma as condicionAlarma,
         s.identificador as sismografoId,
         es.codigo_estacion as codigoEstacion,
-        es.nombre as nombreEstacion
+        es.nombre as nombreEstacion,
+        es.latitud as estacionLatitud,
+        es.longitud as estacionLongitud
       FROM SerieTemporal st
       JOIN Sismografo s ON st.sismografo_id = s.id
       JOIN EstacionSismologica es ON s.estacion_id = es.id
       WHERE st.evento_sismico_id = ?
     `, [eventoId])
-    return series
+
+    // Paso 53: Clasificar por estación
+    const seriesPorEstacion: any = {}
+
+    // Paso 47-52: Recorrer series temporales
+    for (const serie of series) {
+      // Paso 48: Obtener muestras sísmicas
+      const [muestras] = await this.pool.query<RowDataPacket[]>(`
+        SELECT 
+          ms.id,
+          ms.fecha_hora_muestra as fechaHoraMuestra
+        FROM MuestraSismica ms
+        WHERE ms.serie_temporal_id = ?
+        ORDER BY ms.fecha_hora_muestra
+      `, [serie.id])
+
+      const muestrasConDetalles = []
+
+      // Paso 49-50: Obtener detalles de cada muestra
+      for (const muestra of muestras) {
+        const [detalles] = await this.pool.query<RowDataPacket[]>(`
+          SELECT 
+            dms.valor,
+            td.denominacion,
+            td.nombre_unidad_medida as unidadMedida,
+            td.valor_umbral as valorUmbral
+          FROM DetalleMuestraSismica dms
+          JOIN TipoDeDato td ON dms.tipo_dato_id = td.id
+          WHERE dms.muestra_sismica_id = ?
+        `, [muestra.id])
+
+        muestrasConDetalles.push({
+          fechaHoraMuestra: muestra.fechaHoraMuestra,
+          velocidadOnda: detalles.find(d => d.denominacion === 'Velocidad de onda')?.valor,
+          frecuenciaOnda: detalles.find(d => d.denominacion === 'Frecuencia de onda')?.valor,
+          longitudOnda: detalles.find(d => d.denominacion === 'Longitud de onda')?.valor
+        })
+      }
+
+      const serieConMuestras = {
+        ...serie,
+        muestras: muestrasConDetalles
+      }
+
+      // Clasificar por estación
+      const estacion = serie.nombreEstacion
+      if (!seriesPorEstacion[estacion]) {
+        seriesPorEstacion[estacion] = []
+      }
+      seriesPorEstacion[estacion].push(serieConMuestras)
+    }
+
+    return seriesPorEstacion
   }
 
   /**
@@ -359,26 +434,29 @@ export default class GestorRegResEventoSismico {
       )
       if (eventoRows.length === 0) throw new Error('Evento no encontrado')
       
-      const eventoId = eventoRows[0].id
+      const eventoIdNum = eventoRows[0].id
 
       const [estadoRows] = await connection.query<RowDataPacket[]>(
         "SELECT id FROM Estado WHERE nombre = 'rechazado'"
       )
       const estadoRechazadoId = estadoRows[0].id
 
+      // Cerrar cambio de estado anterior estableciendo fecha_hora_fin
       await connection.query(
         'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
-        [eventoId]
+        [eventoIdNum]
       )
 
+      // Crear nuevo cambio de estado para rechazado
       await connection.query(
-        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NULL, ?, ?, ?)',
-        [estadoRechazadoId, eventoId, 1]
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NOW(), ?, ?, ?)',
+        [estadoRechazadoId, eventoIdNum, 1]
       )
 
+      // Actualizar estado actual del evento
       await connection.query(
         'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
-        [estadoRechazadoId, eventoId]
+        [estadoRechazadoId, eventoIdNum]
       )
 
       await connection.commit()
@@ -411,7 +489,7 @@ export default class GestorRegResEventoSismico {
       )
       if (eventoRows.length === 0) throw new Error('Evento no encontrado')
       
-      const eventoId = eventoRows[0].id
+      const eventoIdNum = eventoRows[0].id
 
       const [estadoRows] = await connection.query<RowDataPacket[]>(
         "SELECT id FROM Estado WHERE nombre = 'confirmado'"
@@ -420,17 +498,17 @@ export default class GestorRegResEventoSismico {
 
       await connection.query(
         'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
-        [eventoId]
+        [eventoIdNum]
       )
 
       await connection.query(
-        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NULL, ?, ?, ?)',
-        [estadoConfirmadoId, eventoId, 1]
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NOW(), ?, ?, ?)',
+        [estadoConfirmadoId, eventoIdNum, 1]
       )
 
       await connection.query(
         'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
-        [estadoConfirmadoId, eventoId]
+        [estadoConfirmadoId, eventoIdNum]
       )
 
       await connection.commit()
@@ -463,7 +541,7 @@ export default class GestorRegResEventoSismico {
       )
       if (eventoRows.length === 0) throw new Error('Evento no encontrado')
       
-      const eventoId = eventoRows[0].id
+      const eventoIdNum = eventoRows[0].id
 
       const [estadoRows] = await connection.query<RowDataPacket[]>(
         "SELECT id FROM Estado WHERE nombre = 'derivado_experto'"
@@ -472,17 +550,17 @@ export default class GestorRegResEventoSismico {
 
       await connection.query(
         'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
-        [eventoId]
+        [eventoIdNum]
       )
 
       await connection.query(
-        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NULL, ?, ?, ?)',
-        [estadoDerivadoId, eventoId, 1]
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NOW(), ?, ?, ?)',
+        [estadoDerivadoId, eventoIdNum, 1]
       )
 
       await connection.query(
         'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
-        [estadoDerivadoId, eventoId]
+        [estadoDerivadoId, eventoIdNum]
       )
 
       await connection.commit()

@@ -21,7 +21,6 @@ import dotenv from 'dotenv'
 import path from 'path'
 
 import GestorRegResEventoSismico from './controllers/GestorRegResEventoSismico'
-import PantRegResRevManual from '../../pantalla/PanRegResRevManual'
 
 dotenv.config()
 
@@ -32,16 +31,21 @@ app.use(cors())
 app.use(express.json())
 
 // Gestor del caso de uso (Singleton)
-const gestor = GestorRegResEventoSismico.getInstance()
-const pantalla = new PantRegResRevManual() 
+const gestor = GestorRegResEventoSismico.getInstance() 
 
 // ==========================================
 // PÁGINA PRINCIPAL
 // ==========================================
 
-app.get('/', (_req, res) => {
+app.get('/', async (_req, res) => {
+  const { default: PantRegResRevManual } = await import('../../pantalla/PanRegResRevManual')
+  const pantalla = new PantRegResRevManual()
+  
   const html = pantalla.render()
   res.setHeader('Content-Type', 'text/html')
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
   res.send(html)
 })
 
@@ -179,4 +183,5 @@ app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`)
   console.log(`Base de datos: MySQL (Docker)`)
   console.log(`Persistencia: Activa`)
+  console.log(`Timestamp: ${new Date().toISOString()}`)
 })

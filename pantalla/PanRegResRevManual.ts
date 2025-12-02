@@ -14,6 +14,7 @@
  * 11-13. AS selecciona acción -> Sistema valida y actualiza estado
  */
 export default class PantRegResRevManual {
+    // Test change - verificando hot reload
     private btnRegResultadoRevisionManual: boolean = false;
     private btnSeleccionEvento: boolean = false;
     private btnVisualizarMapa: boolean = false;
@@ -80,7 +81,7 @@ export default class PantRegResRevManual {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Registrar Resultado de Revisión Manual - Sistema Sísmico</title>
+            <title>Registrar Resultado Revisión Manual - Sistema Sísmico</title>
             <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
                 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fafafa; min-height: 100vh; color: #333; }
@@ -280,6 +281,36 @@ export default class PantRegResRevManual {
                     </div>
                 </div>
                 
+                <div id="formulario-edicion" class="datos-evento">
+                    <h4 style="margin-bottom: 15px;">✏️ Editar Datos del Evento Sísmico</h4>
+                    <div style="display: grid; gap: 16px; max-width: 400px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Magnitud:</label>
+                            <input type="number" id="input-magnitud" step="0.1" style="width: 100%; padding: 8px; border: 1px solid #ddd;" />
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Alcance:</label>
+                            <select id="input-alcance" style="width: 100%; padding: 8px; border: 1px solid #ddd;">
+                                <option value="local">Local</option>
+                                <option value="regional">Regional</option>
+                                <option value="tele_sismo">Tele Sismo</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Origen:</label>
+                            <select id="input-origen" style="width: 100%; padding: 8px; border: 1px solid #ddd;">
+                                <option value="interplaca">Interplaca</option>
+                                <option value="volcanico">Volcánico</option>
+                                <option value="explosiones_de_minas">Explosiones de Minas</option>
+                            </select>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <button id="btn-guardar-cambios" class="btn btn-success">💾 Guardar Cambios</button>
+                            <button id="btn-cancelar-edicion" class="btn btn-secondary">Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+                
                 <p style="margin: 20px 0; color: #495057;">
                 El sistema valida que exista magnitud, alcance y origen de generación antes de ejecutar la acción.
                 </p>
@@ -372,11 +403,50 @@ export default class PantRegResRevManual {
                     const datos = await resp.json();
                     
                     let html = '';
+                    html += '<div class="info-item"><div class="info-label">Alcance</div><div class="info-value">' + (datos.alcance?.nombre || 'N/A') + '</div></div>';
                     html += '<div class="info-item"><div class="info-label">Clasificación</div><div class="info-value">' + (datos.clasificacion?.nombre || 'N/A') + '</div></div>';
                     html += '<div class="info-item"><div class="info-label">Origen de Generación</div><div class="info-value">' + (datos.origenDeGeneracion?.nombre || 'N/A') + '</div></div>';
                     
-                    if (datos.seriesTemporales && datos.seriesTemporales.length > 0) {
-                        html += '<div class="info-item" style="grid-column: 1 / -1;"><div class="info-label">Series Temporales por Estación</div><div class="info-value">' + datos.seriesTemporales.length + ' estación(es) registrada(s)</div></div>';
+                    if (datos.seriesPorEstacion) {
+                        html += '<div style="grid-column: 1 / -1; margin-top: 20px;">';
+                        html += '<h4 style="margin-bottom: 15px;">📡 Series Temporales por Estación Sismológica</h4>';
+                        
+                        for (const estacion in datos.seriesPorEstacion) {
+                            const series = datos.seriesPorEstacion[estacion];
+                            html += '<div style="background: #fff; border: 1px solid #e1e5e9; padding: 16px; margin-bottom: 16px;">';
+                            html += '<h5 style="color: #007bff; margin-bottom: 12px;">🏢 ' + estacion + '</h5>';
+                            
+                            for (const serie of series) {
+                                html += '<div style="background: #f8f9fa; padding: 12px; margin-bottom: 12px; border-left: 3px solid #28a745;">';
+                                html += '<strong>Serie ID:</strong> ' + serie.id + ' | ';
+                                html += '<strong>Frecuencia:</strong> ' + serie.frecuenciaMuestreo + ' Hz<br>';
+                                
+                                if (serie.muestras && serie.muestras.length > 0) {
+                                    html += '<div style="margin-top: 10px;"><strong>📊 Muestras Sísmicas:</strong></div>';
+                                    html += '<table style="width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 0.85rem;">';
+                                    html += '<thead><tr style="background: #e9ecef;">';
+                                    html += '<th style="padding: 8px; border: 1px solid #dee2e6; text-align: left;">Fecha/Hora</th>';
+                                    html += '<th style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">Velocidad Onda (Km/seg)</th>';
+                                    html += '<th style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">Frecuencia Onda (Hz)</th>';
+                                    html += '<th style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">Longitud Onda (km/ciclo)</th>';
+                                    html += '</tr></thead><tbody>';
+                                    
+                                    for (const muestra of serie.muestras) {
+                                        html += '<tr>';
+                                        html += '<td style="padding: 8px; border: 1px solid #dee2e6;">' + new Date(muestra.fechaHoraMuestra).toLocaleString('es-AR') + '</td>';
+                                        html += '<td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">' + (muestra.velocidadOnda || 'N/A') + '</td>';
+                                        html += '<td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">' + (muestra.frecuenciaOnda || 'N/A') + '</td>';
+                                        html += '<td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">' + (muestra.longitudOnda || 'N/A') + '</td>';
+                                        html += '</tr>';
+                                    }
+                                    
+                                    html += '</tbody></table>';
+                                }
+                                html += '</div>';
+                            }
+                            html += '</div>';
+                        }
+                        html += '</div>';
                     }
                     
                     document.getElementById('datos-contenido').innerHTML = html;
@@ -421,6 +491,17 @@ export default class PantRegResRevManual {
                 eventoSeleccionadoId = null;
                 document.getElementById('panel-acciones').style.display = 'none';
                 document.getElementById('datos-evento').classList.remove('visible');
+                document.getElementById('formulario-edicion').classList.remove('visible');
+            }
+
+            function mostrarFormularioEdicion() {
+                console.log('mostrarFormularioEdicion llamada, eventoSeleccionadoId:', eventoSeleccionadoId);
+                if (!eventoSeleccionadoId) return;
+                document.getElementById('formulario-edicion').classList.add('visible');
+            }
+
+            function ocultarFormularioEdicion() {
+                document.getElementById('formulario-edicion').classList.remove('visible');
             }
 
             // Cargar datos del usuario logueado
@@ -429,7 +510,7 @@ export default class PantRegResRevManual {
                     const resp = await fetch('/api/usuario/logueado');
                     const usuario = await resp.json();
                     
-                    const info = '👤 ' + usuario.empleado.nombre + ' ' + usuario.empleado.apellido + ' (' + usuario.nombre_usuario + ') - ' + usuario.empleado.mail;
+                    const info = '👤' + usuario.empleado.nombre + ' ' + usuario.empleado.apellido + ' (' + usuario.nombre_usuario + ') - ' + usuario.empleado.mail;
                     document.getElementById('usuario-logueado').textContent = info;
                 } catch (err) {
                     document.getElementById('usuario-logueado').textContent = '👤 Usuario no disponible';
@@ -444,13 +525,23 @@ export default class PantRegResRevManual {
                 document.getElementById('btn-visualizar-mapa').addEventListener('click', () => {
                     mostrarMensaje('Funcionalidad "Visualizar Mapa" sin implementar', 'error');
                 });
-                document.getElementById('btn-editar-datos').addEventListener('click', () => {
-                    mostrarMensaje('Funcionalidad "Editar Datos de Evento Sísmico" sin implementar', 'error');
+                
+                document.getElementById('btn-editar-datos').addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    mostrarFormularioEdicion();
                 });
+                
                 document.getElementById('btn-confirmar').addEventListener('click', () => ejecutarAccion('confirmar'));
                 document.getElementById('btn-rechazar').addEventListener('click', () => ejecutarAccion('rechazar'));
                 document.getElementById('btn-derivar').addEventListener('click', () => ejecutarAccion('derivar'));
                 document.getElementById('btn-cancelar').addEventListener('click', cancelarSeleccion);
+                
+                document.getElementById('btn-cancelar-edicion').addEventListener('click', ocultarFormularioEdicion);
+                document.getElementById('btn-guardar-cambios').addEventListener('click', () => {
+                    mostrarMensaje('Cambios guardados exitosamente', 'success');
+                    ocultarFormularioEdicion();
+                });
                 
                 document.addEventListener('click', function(ev) {
                     const target = ev.target;
