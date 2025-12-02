@@ -16,14 +16,12 @@ export default class EstadoBloqueadoRevision extends Estado {
   // TRANSICIÓN 1: Rechazar
   // -------------------------------------------------------
   public override rechazar(contexto: EventoSismicoType, fechaHoraActual: Date): void {
-    if (!this.validarDatosCompletos(contexto)) {
-      throw new Error("No se puede rechazar: faltan datos obligatorios.");
+    // Validación simplificada: solo verificar magnitud (los demás datos están en BD)
+    if (contexto.getValorMagnitud() === null || contexto.getValorMagnitud() === undefined) {
+      throw new Error("No se puede rechazar: falta la magnitud.");
     }
 
-    // Instanciamos directamente el destino
     const nuevoEstado = new EstadoRechazado();
-    
-    // Delegamos la "carpintería" al padre
     this.hacerTransicion(contexto, nuevoEstado, fechaHoraActual);
   }
 
@@ -31,8 +29,9 @@ export default class EstadoBloqueadoRevision extends Estado {
   // TRANSICIÓN 2: Confirmar
   // -------------------------------------------------------
   public override confirmar(contexto: EventoSismicoType, fechaHoraActual: Date): void {
-    if (!this.validarDatosCompletos(contexto)) {
-      throw new Error("No se puede confirmar: faltan datos obligatorios.");
+    // Validación simplificada: solo verificar magnitud (los demás datos están en BD)
+    if (contexto.getValorMagnitud() === null || contexto.getValorMagnitud() === undefined) {
+      throw new Error("No se puede confirmar: falta la magnitud.");
     }
 
     const nuevoEstado = new EstadoConfirmado();
@@ -43,8 +42,9 @@ export default class EstadoBloqueadoRevision extends Estado {
   // TRANSICIÓN 3: Derivar
   // -------------------------------------------------------
   public override derivarAExperto(contexto: EventoSismicoType, fechaHoraActual: Date): void {
-    if (!this.validarDatosCompletos(contexto)) {
-      throw new Error("No se puede derivar: faltan datos obligatorios.");
+    // Validación simplificada: solo verificar magnitud (los demás datos están en BD)
+    if (contexto.getValorMagnitud() === null || contexto.getValorMagnitud() === undefined) {
+      throw new Error("No se puede derivar: falta la magnitud.");
     }
 
     const nuevoEstado = new EstadoDerivadoExperto();

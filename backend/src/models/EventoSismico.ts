@@ -33,6 +33,9 @@ export default class EventoSismico {
   private serieTemporal: SerieTemporal[]
   private alcanceSismo: AlcanceSismo | null = null
 
+  // Cola de cambios de estado pendientes de persistir en BD
+  public cambiosPendientesDeGuardar: CambioEstado[] = []
+
   constructor(
     fechaHoraOcurrencia: Date,
     latitudEpicentro: number,
@@ -119,14 +122,17 @@ export default class EventoSismico {
     const estadoActualCambio = this.cambioEstado.find(c => c.esActual())
     
     if (estadoActualCambio) {
-      // Usamos el getter de CambioEstado para obtener la fecha inicio
       const fechaInicio = cambioEstado.getFechaHoraInicio();
-      if(fechaInicio) {
-          estadoActualCambio.setFechaHoraFin(fechaInicio);
+      if (fechaInicio) {
+        estadoActualCambio.setFechaHoraFin(fechaInicio);
+        // Marcar el anterior como modificado para actualizarlo en BD
+        this.cambiosPendientesDeGuardar.push(estadoActualCambio);
       }
     }
 
     this.cambioEstado.push(cambioEstado)
+    // Marcar el nuevo para insertarlo en BD
+    this.cambiosPendientesDeGuardar.push(cambioEstado);
   }
 
   public setEstadoActual(estado: Estado): void {
@@ -161,7 +167,7 @@ export default class EventoSismico {
   }
 
   // ==========================================
-  // DELEGACIÓN AL STATE (Aquí estaban los errores)
+  // DELEGACIÓN AL STATE 
   // ==========================================
 
 
@@ -214,5 +220,59 @@ export default class EventoSismico {
 
   public buscarSeriesTemporales(): SerieTemporal[] {
     return this.serieTemporal;
+  }
+
+  // ==========================================
+  // FACTORY: RESTAURAR DESDE BASE DE DATOS
+  // ==========================================
+
+  /**
+   * Método estático (Factory) para reconstruir un EventoSismico desde la BD
+   * No genera ID nuevo ni historial inicial - usa los datos existentes
+   * @param id - ID del evento en BD
+   * @param datos - Datos crudos de la query
+   * @param estadoActual - Instancia del Estado concreto
+   * @returns EventoSismico reconstruido
+   */
+  public static restaurarDesdeBD(
+    id: number,
+    datos: any,
+    estadoActual: Estado
+  ): EventoSismico {
+    // Creamos el objeto sin usar el constructor normal para no generar ID nuevo ni historial inicial
+    const evento = Object.create(EventoSismico.prototype) as EventoSismico;
+    
+    evento.id = String(id);
+    evento.fechaHoraOcurrencia = new Date(datos.fechaHoraOcurrencia);
+    evento.latitudEpicentro = datos.latitudEpicentro;
+    evento.latitudHipocentro = datos.latitudHipocentro;
+    evento.longitudEpicentro = datos.longitudEpicentro;
+    evento.longitudHipocentro = datos.longitudHipocentro;
+    evento.valorMagnitud = datos.valorMagnitud;
+    evento.profundidad = datos.profundidad;
+    evento.origenDeGeneracion = null!;
+    evento.serieTemporal = [];
+    evento.alcanceSismo = null;
+    
+    evento.estadoActual = estadoActual;
+    evento.cambioEstado = [];
+    evento.cambiosPendientesDeGuardar = []; // Cola vacía para guardar solo lo nuevo
+    evento.magnitud = MagnitudRichter.setMagnitudRichter(datos.valorMagnitud);
+    
+    return evento;
+  }
+
+  /**
+   * Limpia la cola de cambios pendientes después de persistir
+   */
+  public limpiarCambiosPendientes(): void {
+    this.cambiosPendientesDeGuardar = [];
+  }
+
+  /**
+   * Obtiene los cambios pendientes de persistir
+   */
+  public getCambiosPendientes(): CambioEstado[] {
+    return this.cambiosPendientesDeGuardar;
   }
 }

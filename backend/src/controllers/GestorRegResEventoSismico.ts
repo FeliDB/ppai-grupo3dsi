@@ -25,6 +25,8 @@
  */
 
 import mysql, { Pool, RowDataPacket } from 'mysql2/promise'
+import EventoSismico from '../models/EventoSismico'
+import FabricaEstado from '../models/FabricaEstado'
 
 export default class GestorRegResEventoSismico {
   private static instance: GestorRegResEventoSismico
@@ -45,7 +47,7 @@ export default class GestorRegResEventoSismico {
     })
   }
 
-  /** Singleton - Obtener instancia única del gestor */
+  /** Obtener instancia única del gestor */
   public static getInstance(): GestorRegResEventoSismico {
     if (!GestorRegResEventoSismico.instance) {
       GestorRegResEventoSismico.instance = new GestorRegResEventoSismico()
@@ -189,7 +191,7 @@ export default class GestorRegResEventoSismico {
 
   /**
    * Paso 27 del CU: Bloquear evento sísmico seleccionado
-   * Cambia el estado a bloqueado_en_revision
+   * APLICA PATRÓN STATE: Gestor -> EventoSismico -> Estado
    * @param eventoId - ID numérico o identificador del evento
    */
   async bloquearEventoSismico(eventoId: number | string): Promise<void> {
@@ -198,37 +200,70 @@ export default class GestorRegResEventoSismico {
     try {
       await connection.beginTransaction()
 
-      // Buscar evento
+      // ---------------------------------------------------------
+      // 1. RECUPERAR (Hydration) - Traemos datos y reconstruimos objeto
+      // ---------------------------------------------------------
       const [eventoRows] = await connection.query<RowDataPacket[]>(
-        'SELECT id, estado_actual_id FROM EventoSismico WHERE id = ? OR identificador_evento = ?',
+        `SELECT e.*, est.nombre as nombre_estado 
+         FROM EventoSismico e 
+         JOIN Estado est ON e.estado_actual_id = est.id 
+         WHERE e.id = ? OR e.identificador_evento = ?`,
         [identificador, identificador]
       )
       if (eventoRows.length === 0) throw new Error('Evento no encontrado')
+      const data = eventoRows[0]
+
+      // Reconstruimos el Estado usando la Fábrica (Polimorfismo)
+      const estadoObjeto = FabricaEstado.crearPorNombre(data.nombre_estado)
+
+      // Reconstruimos el EventoSismico (Contexto del State)
+      const evento = EventoSismico.restaurarDesdeBD(data.id, {
+        fechaHoraOcurrencia: data.fecha_hora_ocurrencia,
+        latitudEpicentro: data.latitud_epicentro,
+        latitudHipocentro: data.latitud_hipocentro,
+        longitudEpicentro: data.longitud_epicentro,
+        longitudHipocentro: data.longitud_hipocentro,
+        valorMagnitud: data.valor_magnitud,
+        profundidad: data.profundidad
+      }, estadoObjeto)
+
+      // ---------------------------------------------------------
+      // 2. EJECUTAR LÓGICA DE NEGOCIO (PATRÓN STATE)
+      // ---------------------------------------------------------
+      const fechaActual = new Date()
+      // ESTA LÍNEA APLICA EL PATRÓN STATE:
+      // Si el estado no permite bloquear, lanza error.
+      // Si permite, cambia el estado interno y genera el historial en memoria.
+      evento.bloquear(fechaActual)
+
+      // ---------------------------------------------------------
+      // 3. PERSISTIR CAMBIOS (Guardar lo que hizo el objeto)
+      // ---------------------------------------------------------
       
-      const eventoId = eventoRows[0].id
-
-      // Buscar estado bloqueado_en_revision
-      const [estadoRows] = await connection.query<RowDataPacket[]>(
-        "SELECT id FROM Estado WHERE nombre = 'bloqueado_en_revision'"
+      // A. Obtener ID del nuevo estado en BD
+      const nuevoNombreEstado = evento.getEstadoActual().getNombreEstado()
+      const [estRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM Estado WHERE nombre = ?', 
+        [nuevoNombreEstado]
       )
-      const estadoBloqueadoId = estadoRows[0].id
+      const nuevoEstadoId = estRows[0].id
 
-      // Cerrar cambio de estado anterior (setFechaHoraFin)
-      await connection.query(
-        'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
-        [eventoId]
-      )
-
-      // Crear nuevo CambioEstado
-      await connection.query(
-        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NULL, ?, ?, ?)',
-        [estadoBloqueadoId, eventoId, 1] // empleado_id = 1 por defecto
-      )
-
-      // Actualizar estado actual del evento
+      // B. Actualizar estado actual del evento
       await connection.query(
         'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
-        [estadoBloqueadoId, eventoId]
+        [nuevoEstadoId, data.id]
+      )
+
+      // C. Cerrar cambio de estado anterior
+      await connection.query(
+        'UPDATE CambioEstado SET fecha_hora_fin = ? WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
+        [fechaActual, data.id]
+      )
+
+      // D. Insertar nuevo cambio de estado
+      await connection.query(
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (?, NULL, ?, ?, ?)',
+        [fechaActual, nuevoEstadoId, data.id, 1]
       )
 
       await connection.commit()
@@ -419,7 +454,7 @@ export default class GestorRegResEventoSismico {
 
   /**
    * Paso 60 del CU: Rechazar evento sísmico
-   * Cambia el estado a rechazado
+   * APLICA PATRÓN STATE: Gestor -> EventoSismico -> Estado
    * @param eventoId - ID del evento
    */
   async rechazarEventoSismico(eventoId: number | string): Promise<void> {
@@ -428,35 +463,53 @@ export default class GestorRegResEventoSismico {
     try {
       await connection.beginTransaction()
 
+      // 1. RECUPERAR (Hydration)
       const [eventoRows] = await connection.query<RowDataPacket[]>(
-        'SELECT id FROM EventoSismico WHERE id = ? OR identificador_evento = ?',
+        `SELECT e.*, est.nombre as nombre_estado 
+         FROM EventoSismico e 
+         JOIN Estado est ON e.estado_actual_id = est.id 
+         WHERE e.id = ? OR e.identificador_evento = ?`,
         [identificador, identificador]
       )
       if (eventoRows.length === 0) throw new Error('Evento no encontrado')
-      
-      const eventoIdNum = eventoRows[0].id
+      const data = eventoRows[0]
 
-      const [estadoRows] = await connection.query<RowDataPacket[]>(
-        "SELECT id FROM Estado WHERE nombre = 'rechazado'"
+      const estadoObjeto = FabricaEstado.crearPorNombre(data.nombre_estado)
+      const evento = EventoSismico.restaurarDesdeBD(data.id, {
+        fechaHoraOcurrencia: data.fecha_hora_ocurrencia,
+        latitudEpicentro: data.latitud_epicentro,
+        latitudHipocentro: data.latitud_hipocentro,
+        longitudEpicentro: data.longitud_epicentro,
+        longitudHipocentro: data.longitud_hipocentro,
+        valorMagnitud: data.valor_magnitud,
+        profundidad: data.profundidad
+      }, estadoObjeto)
+
+      // 2. EJECUTAR LÓGICA DE NEGOCIO (PATRÓN STATE)
+      const fechaActual = new Date()
+      evento.rechazar(fechaActual) // Delega al Estado -> valida y cambia
+
+      // 3. PERSISTIR CAMBIOS
+      const nuevoNombreEstado = evento.getEstadoActual().getNombreEstado()
+      const [estRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM Estado WHERE nombre = ?', 
+        [nuevoNombreEstado]
       )
-      const estadoRechazadoId = estadoRows[0].id
+      const nuevoEstadoId = estRows[0].id
 
-      // Cerrar cambio de estado anterior estableciendo fecha_hora_fin
-      await connection.query(
-        'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
-        [eventoIdNum]
-      )
-
-      // Crear nuevo cambio de estado para rechazado
-      await connection.query(
-        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NOW(), ?, ?, ?)',
-        [estadoRechazadoId, eventoIdNum, 1]
-      )
-
-      // Actualizar estado actual del evento
       await connection.query(
         'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
-        [estadoRechazadoId, eventoIdNum]
+        [nuevoEstadoId, data.id]
+      )
+
+      await connection.query(
+        'UPDATE CambioEstado SET fecha_hora_fin = ? WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
+        [fechaActual, data.id]
+      )
+
+      await connection.query(
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (?, ?, ?, ?, ?)',
+        [fechaActual, fechaActual, nuevoEstadoId, data.id, 1]
       )
 
       await connection.commit()
@@ -474,7 +527,7 @@ export default class GestorRegResEventoSismico {
 
   /**
    * Flujo alternativo: Confirmar evento sísmico
-   * Cambia el estado a confirmado
+   * APLICA PATRÓN STATE: Gestor -> EventoSismico -> Estado
    * @param eventoId - ID del evento
    */
   async confirmarEventoSismico(eventoId: number | string): Promise<void> {
@@ -483,32 +536,53 @@ export default class GestorRegResEventoSismico {
     try {
       await connection.beginTransaction()
 
+      // 1. RECUPERAR (Hydration)
       const [eventoRows] = await connection.query<RowDataPacket[]>(
-        'SELECT id FROM EventoSismico WHERE id = ? OR identificador_evento = ?',
+        `SELECT e.*, est.nombre as nombre_estado 
+         FROM EventoSismico e 
+         JOIN Estado est ON e.estado_actual_id = est.id 
+         WHERE e.id = ? OR e.identificador_evento = ?`,
         [identificador, identificador]
       )
       if (eventoRows.length === 0) throw new Error('Evento no encontrado')
-      
-      const eventoIdNum = eventoRows[0].id
+      const data = eventoRows[0]
 
-      const [estadoRows] = await connection.query<RowDataPacket[]>(
-        "SELECT id FROM Estado WHERE nombre = 'confirmado'"
-      )
-      const estadoConfirmadoId = estadoRows[0].id
+      const estadoObjeto = FabricaEstado.crearPorNombre(data.nombre_estado)
+      const evento = EventoSismico.restaurarDesdeBD(data.id, {
+        fechaHoraOcurrencia: data.fecha_hora_ocurrencia,
+        latitudEpicentro: data.latitud_epicentro,
+        latitudHipocentro: data.latitud_hipocentro,
+        longitudEpicentro: data.longitud_epicentro,
+        longitudHipocentro: data.longitud_hipocentro,
+        valorMagnitud: data.valor_magnitud,
+        profundidad: data.profundidad
+      }, estadoObjeto)
 
-      await connection.query(
-        'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
-        [eventoIdNum]
-      )
+      // 2. EJECUTAR LÓGICA DE NEGOCIO (PATRÓN STATE)
+      const fechaActual = new Date()
+      evento.confirmar(fechaActual) // Delega al Estado -> valida y cambia
 
-      await connection.query(
-        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NOW(), ?, ?, ?)',
-        [estadoConfirmadoId, eventoIdNum, 1]
+      // 3. PERSISTIR CAMBIOS
+      const nuevoNombreEstado = evento.getEstadoActual().getNombreEstado()
+      const [estRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM Estado WHERE nombre = ?', 
+        [nuevoNombreEstado]
       )
+      const nuevoEstadoId = estRows[0].id
 
       await connection.query(
         'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
-        [estadoConfirmadoId, eventoIdNum]
+        [nuevoEstadoId, data.id]
+      )
+
+      await connection.query(
+        'UPDATE CambioEstado SET fecha_hora_fin = ? WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
+        [fechaActual, data.id]
+      )
+
+      await connection.query(
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (?, ?, ?, ?, ?)',
+        [fechaActual, fechaActual, nuevoEstadoId, data.id, 1]
       )
 
       await connection.commit()
@@ -526,7 +600,7 @@ export default class GestorRegResEventoSismico {
 
   /**
    * Flujo alternativo: Derivar evento sísmico a experto
-   * Cambia el estado a derivado_experto
+   * APLICA PATRÓN STATE: Gestor -> EventoSismico -> Estado
    * @param eventoId - ID del evento
    */
   async derivarEventoSismico(eventoId: number | string): Promise<void> {
@@ -535,32 +609,53 @@ export default class GestorRegResEventoSismico {
     try {
       await connection.beginTransaction()
 
+      // 1. RECUPERAR (Hydration)
       const [eventoRows] = await connection.query<RowDataPacket[]>(
-        'SELECT id FROM EventoSismico WHERE id = ? OR identificador_evento = ?',
+        `SELECT e.*, est.nombre as nombre_estado 
+         FROM EventoSismico e 
+         JOIN Estado est ON e.estado_actual_id = est.id 
+         WHERE e.id = ? OR e.identificador_evento = ?`,
         [identificador, identificador]
       )
       if (eventoRows.length === 0) throw new Error('Evento no encontrado')
-      
-      const eventoIdNum = eventoRows[0].id
+      const data = eventoRows[0]
 
-      const [estadoRows] = await connection.query<RowDataPacket[]>(
-        "SELECT id FROM Estado WHERE nombre = 'derivado_experto'"
-      )
-      const estadoDerivadoId = estadoRows[0].id
+      const estadoObjeto = FabricaEstado.crearPorNombre(data.nombre_estado)
+      const evento = EventoSismico.restaurarDesdeBD(data.id, {
+        fechaHoraOcurrencia: data.fecha_hora_ocurrencia,
+        latitudEpicentro: data.latitud_epicentro,
+        latitudHipocentro: data.latitud_hipocentro,
+        longitudEpicentro: data.longitud_epicentro,
+        longitudHipocentro: data.longitud_hipocentro,
+        valorMagnitud: data.valor_magnitud,
+        profundidad: data.profundidad
+      }, estadoObjeto)
 
-      await connection.query(
-        'UPDATE CambioEstado SET fecha_hora_fin = NOW() WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
-        [eventoIdNum]
-      )
+      // 2. EJECUTAR LÓGICA DE NEGOCIO (PATRÓN STATE)
+      const fechaActual = new Date()
+      evento.derivarAExperto(fechaActual) // Delega al Estado -> valida y cambia
 
-      await connection.query(
-        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (NOW(), NOW(), ?, ?, ?)',
-        [estadoDerivadoId, eventoIdNum, 1]
+      // 3. PERSISTIR CAMBIOS
+      const nuevoNombreEstado = evento.getEstadoActual().getNombreEstado()
+      const [estRows] = await connection.query<RowDataPacket[]>(
+        'SELECT id FROM Estado WHERE nombre = ?', 
+        [nuevoNombreEstado]
       )
+      const nuevoEstadoId = estRows[0].id
 
       await connection.query(
         'UPDATE EventoSismico SET estado_actual_id = ? WHERE id = ?',
-        [estadoDerivadoId, eventoIdNum]
+        [nuevoEstadoId, data.id]
+      )
+
+      await connection.query(
+        'UPDATE CambioEstado SET fecha_hora_fin = ? WHERE evento_sismico_id = ? AND fecha_hora_fin IS NULL',
+        [fechaActual, data.id]
+      )
+
+      await connection.query(
+        'INSERT INTO CambioEstado (fecha_hora_inicio, fecha_hora_fin, estado_id, evento_sismico_id, empleado_id) VALUES (?, ?, ?, ?, ?)',
+        [fechaActual, fechaActual, nuevoEstadoId, data.id, 1]
       )
 
       await connection.commit()
@@ -571,6 +666,7 @@ export default class GestorRegResEventoSismico {
       connection.release()
     }
   }
+  
 
   // ==========================================
   // PASO 73: FIN DEL CASO DE USO
