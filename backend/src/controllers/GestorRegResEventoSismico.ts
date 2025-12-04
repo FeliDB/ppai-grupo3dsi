@@ -473,7 +473,7 @@ export default class GestorRegResEventoSismico {
     try {
       await connection.beginTransaction()
 
-      // 1. RECUPERAR (Hydration)
+      // 1. RECUPERAR 
       const [eventoRows] = await connection.query<RowDataPacket[]>(
         `SELECT e.*, est.nombre as nombre_estado 
          FROM EventoSismico e 
