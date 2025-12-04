@@ -1,12 +1,12 @@
 export default class OrigenDeGeneracion {
-  // private descripcion: string
+  private descripcion: string
   private nombre: string
 
   constructor(
-    // descripcion: string,
+    descripcion: string,
     nombre: string
   ) {
-    // this.descripcion = descripcion
+    this.descripcion = descripcion
     this.nombre = nombre
   }
 

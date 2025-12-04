@@ -213,13 +213,71 @@ export default class EventoSismico {
 
   public buscarDatosSismicos(): object {
     return {
-      alcance: this.alcanceSismo?.getNombre() || null,
-      origenDeGeneracion: this.origenDeGeneracion?.getNombre() || null
+      id: this.id,
+      identificadorEvento: this.id,
+      fechaHoraOcurrencia: this.fechaHoraOcurrencia,
+      latitudEpicentro: this.latitudEpicentro,
+      latitudHipocentro: this.latitudHipocentro,
+      longitudEpicentro: this.longitudEpicentro,
+      longitudHipocentro: this.longitudHipocentro,
+      valorMagnitud: this.valorMagnitud,
+      profundidad: this.profundidad,
+      estadoActualNombre: this.estadoActual.getNombreEstado(),
+      origenGeneracion: this.origenDeGeneracion?.getNombre() || null,
+      alcance: this.alcanceSismo?.getNombre() || null
     };
   }
 
   public buscarSeriesTemporales(): SerieTemporal[] {
     return this.serieTemporal;
+  }
+
+  /**
+   * Obtiene el nombre de la clasificación del sismo basándose en la profundidad.
+   * Delega a ClasificacionSismo para determinar si es superficial, intermedio o profundo.
+   */
+  public getClasificacionSismo(): string {
+    const clasificacion = ClasificacionSismo.setClasificacionSismo(this.profundidad);
+    return clasificacion.getNombre();
+  }
+
+  /**
+   * Clasifica las series temporales por estación sismológica.
+   * Agrupa las series según la estación del sismógrafo que las registró.
+   * Llama al caso de uso Generar Sismograma para cada estación.
+   * @returns Mapa de series temporales agrupadas por nombre de estación
+   */
+  public clasificarPorEstacion(): Map<string, SerieTemporal[]> {
+    const seriesPorEstacion = new Map<string, SerieTemporal[]>();
+
+    for (const serie of this.serieTemporal) {
+      const sismografo = serie.getSismografo();
+      const estacion = sismografo.getEstacionSismologica();
+      const nombreEstacion = estacion.getNombre();
+
+      if (!seriesPorEstacion.has(nombreEstacion)) {
+        seriesPorEstacion.set(nombreEstacion, []);
+      }
+      seriesPorEstacion.get(nombreEstacion)!.push(serie);
+    }
+
+    // Llamar al caso de uso generar sismograma para cada estación
+    this.generarSismograma(seriesPorEstacion);
+
+    return seriesPorEstacion;
+  }
+
+  /**
+   * Llama al caso de uso Generar Sismograma.
+   * @param seriesPorEstacion - Series temporales clasificadas por estación
+   */
+  private generarSismograma(seriesPorEstacion: Map<string, SerieTemporal[]>): void {
+    // TODO: Implementar llamada al caso de uso CU Generar Sismograma
+    // Por cada estación, se genera el sismograma correspondiente
+    seriesPorEstacion.forEach((series, nombreEstacion) => {
+      console.log(`Generando sismograma para estación: ${nombreEstacion} con ${series.length} series`);
+      // Aquí se llamaría al gestor del caso de uso generar sismograma
+    });
   }
 
   // ==========================================

@@ -11,8 +11,4 @@ export default class Usuario {
   getEmpleado(): Usuario {
     return this;
   }
-
-  getNombreUsuario(): string {
-    return this.nombreUsuario;
-  }
 }

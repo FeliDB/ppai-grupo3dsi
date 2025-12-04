@@ -257,7 +257,7 @@ export default class PantRegResRevManual {
             <div id="mensaje" class="mensaje"></div>
             
             <div class="section">
-                <h2>📋Lista de Eventos Sísmicos Autodetectados</h2>
+                <h2>📋Lista de Eventos Sísmicos Autodetectados/Pendiente de Revision</h2>
                 <p style="color: #6c757d; margin-bottom: 20px;">Eventos ordenados por fecha/hora de ocurrencia. Seleccione uno para revisar.</p>
                 <div id="lista-eventos"><div class="loading">Cargando eventos...</div></div>
             </div>

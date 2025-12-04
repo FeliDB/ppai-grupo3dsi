@@ -33,7 +33,9 @@ export default class GestorRegResEventoSismico {
   private pool: Pool
   private fechaHoraActual: Date | null = null
   private usuarioLogueado: any = null
-  private eventoSeleccionado: any = null
+  private eventoSismico: any = null
+  private estado:any = null
+  private SerieTemporal:any = null
 
   private constructor() {
     this.pool = mysql.createPool({
@@ -118,7 +120,7 @@ export default class GestorRegResEventoSismico {
    * @returns Objeto con el evento seleccionado
    */
   async tomarSeleccionEventoSismico(eventoId: number): Promise<any> {
-    this.eventoSeleccionado = eventoId
+    this.eventoSismico = eventoId
     return { eventoId }
   }
 
@@ -191,7 +193,7 @@ export default class GestorRegResEventoSismico {
 
   /**
    * Paso 27 del CU: Bloquear evento sísmico seleccionado
-   * APLICA PATRÓN STATE: Gestor -> EventoSismico -> Estado
+   * APLICA PATRÓN STATE: Gestor -> EventoSismico -> Estado concreto
    * @param eventoId - ID numérico o identificador del evento
    */
   async bloquearEventoSismico(eventoId: number | string): Promise<void> {
@@ -201,7 +203,7 @@ export default class GestorRegResEventoSismico {
       await connection.beginTransaction()
 
       // ---------------------------------------------------------
-      // 1. RECUPERAR (Hydration) - Traemos datos y reconstruimos objeto
+      // 1. RECUPERAR  - Traemos datos y reconstruimos objeto
       // ---------------------------------------------------------
       const [eventoRows] = await connection.query<RowDataPacket[]>(
         `SELECT e.*, est.nombre as nombre_estado 
@@ -281,12 +283,13 @@ export default class GestorRegResEventoSismico {
 
   /**
    * Paso 37 del CU: Buscar datos sísmicos del evento
-   * Incluye: alcance, clasificación, origen de generación
+   * Delega al modelo EventoSismico para obtener los datos
    * @param eventoId - ID del evento
    */
   async buscarDatosSismicos(eventoId: number | string): Promise<any> {
     const identificador = String(eventoId)
-    // Buscar evento
+    
+    // Buscar evento en BD
     const [eventoRows] = await this.pool.query<RowDataPacket[]>(`
       SELECT 
         e.id,
@@ -307,20 +310,27 @@ export default class GestorRegResEventoSismico {
     `, [identificador, identificador])
     
     if (eventoRows.length === 0) throw new Error('Evento no encontrado')
-    const evento = eventoRows[0]
+    const eventoData = eventoRows[0]
+
+    // Restaurar instancia de EventoSismico desde BD
+    const estadoActual = FabricaEstado.crearPorNombre(eventoData.estadoActualNombre)
+    const eventoSismico = EventoSismico.restaurarDesdeBD(eventoData.id, eventoData, estadoActual)
+
+    // Delegar al modelo para obtener los datos sísmicos
+    const datosSismicos = eventoSismico.buscarDatosSismicos()
 
     // Paso 45-53: Buscar series temporales con muestras y clasificar por estación
-    const seriesPorEstacion = await this.buscarSeriesTemporalesConMuestras(evento.id)
+    const seriesPorEstacion = await this.buscarSeriesTemporales(eventoData.id)
 
     // Paso 38-39: Calcular alcance del sismo
     const todasLasSeries = Object.values(seriesPorEstacion).flat()
-    const alcance = this.calcularAlcanceSismo(evento, todasLasSeries)
+    const alcance = this.calcularAlcanceSismo(eventoData, todasLasSeries)
 
     return {
-      evento,
+      evento: datosSismicos,
       alcance: { nombre: alcance },
-      clasificacion: { nombre: evento.profundidad > 70 ? 'Profundo' : 'Superficial' },
-      origenDeGeneracion: { nombre: evento.origenGeneracion },
+      clasificacion: { nombre: eventoData.profundidad > 70 ? 'Profundo' : 'Superficial' },
+      origenDeGeneracion: { nombre: eventoData.origenGeneracion },
       seriesPorEstacion
     }
   }
@@ -363,7 +373,7 @@ export default class GestorRegResEventoSismico {
    * @param eventoId - ID del evento
    * @returns Series temporales clasificadas por estación con muestras y detalles
    */
-  async buscarSeriesTemporalesConMuestras(eventoId: number | string): Promise<any> {
+  async buscarSeriesTemporales(eventoId: number | string): Promise<any> {
     // Paso 45-46: Buscar series temporales
     const [series] = await this.pool.query<RowDataPacket[]>(`
       SELECT 
@@ -457,7 +467,7 @@ export default class GestorRegResEventoSismico {
    * APLICA PATRÓN STATE: Gestor -> EventoSismico -> Estado
    * @param eventoId - ID del evento
    */
-  async rechazarEventoSismico(eventoId: number | string): Promise<void> {
+  async actualizarEstadoRechazado(eventoId: number | string): Promise<void> {
     const identificador = String(eventoId)
     const connection = await this.pool.getConnection()
     try {
@@ -677,7 +687,7 @@ export default class GestorRegResEventoSismico {
    * Limpia el estado del gestor
    */
   finCU(): void {
-    this.eventoSeleccionado = null
+    this.eventoSismico = null
     this.fechaHoraActual = null
   }
 }

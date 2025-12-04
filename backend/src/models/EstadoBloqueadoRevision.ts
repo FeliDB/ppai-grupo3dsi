@@ -2,6 +2,7 @@ import { Estado, EventoSismicoType } from "./Estado";
 import EstadoRechazado from "./EstadoRechazado";
 import EstadoConfirmado from "./EstadoConfirmado";
 import EstadoDerivadoExperto from "./EstadoDerivadoExperto";
+import CambioEstado from "./CambioEstado";
 
 export default class EstadoBloqueadoRevision extends Estado {
   constructor() {
@@ -12,6 +13,13 @@ export default class EstadoBloqueadoRevision extends Estado {
     return true;
   }
 
+
+  public override crearEstadoSiguiente(): Estado {
+    return new EstadoRechazado();
+  }
+  public override crearCambioEstado(fechaHoraInicio: Date): CambioEstado {
+    return new CambioEstado(this, fechaHoraInicio, null);
+  }
   // -------------------------------------------------------
   // TRANSICIÓN 1: Rechazar
   // -------------------------------------------------------

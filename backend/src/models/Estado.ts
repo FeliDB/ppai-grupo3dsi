@@ -34,7 +34,7 @@ export abstract class Estado {
   public esAutoConfirmado(): boolean { return false; }
 
   // ==========================================
-  // MÉTODOS DE TRANSICIÓN (Template Pattern)
+  // MÉTODOS DE TRANSICIÓN
   // Lanzan error por defecto.
   // ==========================================
 

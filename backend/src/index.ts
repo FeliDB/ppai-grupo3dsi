@@ -105,7 +105,7 @@ app.post('/api/eventos/:id/rechazar', async (req, res) => {
   const eventoId = req.params.id
   console.log('Rechazar evento:', eventoId)
   try {
-    await gestor.rechazarEventoSismico(eventoId)
+    await gestor.actualizarEstadoRechazado(eventoId)
     console.log('OK - Evento rechazado y persistido')
     res.status(200).json({ message: 'Evento rechazado exitosamente' })
   } catch (error: any) {

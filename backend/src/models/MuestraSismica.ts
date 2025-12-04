@@ -20,7 +20,7 @@ export default class MuestraSismica {
   }
 
   /**
-   * Paso 140 del diagrama de clases: Obtener la muestra sísmica
+   
    * @returns Esta instancia de MuestraSismica
    */
   getMuestraSismica(): MuestraSismica {
